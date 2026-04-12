@@ -51,6 +51,7 @@ export const TRUCK_CONFIGS: Record<TruckType, TruckConfig> = {
 
 export interface NaeProduct {
   nae: string;
+  sku: string;
   ean: string;
   descripcion: string;
   departamento: string | number;

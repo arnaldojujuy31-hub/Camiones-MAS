@@ -33,8 +33,8 @@ export function TruckAudit() {
 
   const filtered = useMemo(() => {
     return truck.products.filter((p) => {
-      const isAgotado = agotadosSet.has(p.ean);
-      const isAudited = !!truck.auditedProducts[p.ean];
+      const isAgotado = agotadosSet.has(p.sku);
+      const isAudited = !!truck.auditedProducts[p.sku];
       const q = search.toLowerCase();
 
       if (filterAgotados && !isAgotado) return false;
@@ -42,6 +42,7 @@ export function TruckAudit() {
 
       if (!q) return true;
       return (
+        p.sku.toLowerCase().includes(q) ||
         p.ean.toLowerCase().includes(q) ||
         p.descripcion.toLowerCase().includes(q) ||
         p.departamento?.toString().toLowerCase().includes(q)
@@ -50,7 +51,7 @@ export function TruckAudit() {
   }, [truck, agotadosSet, search, filterAgotados, filterPending]);
 
   const auditedCount = Object.keys(truck.auditedProducts || {}).length;
-  const agotadoCount = truck.products.filter((p) => agotadosSet.has(p.ean)).length;
+  const agotadoCount = truck.products.filter((p) => agotadosSet.has(p.sku)).length;
   const totalCount = truck.products.length;
   const progressPct = totalCount > 0 ? Math.round((auditedCount / totalCount) * 100) : 0;
 
@@ -69,8 +70,10 @@ export function TruckAudit() {
             </button>
             <span className="text-2xl">{config.icon}</span>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${config.badgeColor}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${config.badgeColor}`}
+                >
                   {config.label}
                 </span>
                 {agotadoCount > 0 && (
@@ -103,12 +106,12 @@ export function TruckAudit() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-3 space-y-3 sticky top-[110px] z-10 bg-gray-50 pt-3 pb-2">
+      <div className="max-w-2xl mx-auto px-4 py-3 space-y-2 sticky top-[110px] z-10 bg-gray-50 pb-2">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="search"
-            placeholder="Buscar por EAN, descripción o departamento..."
+            placeholder="Buscar por SKU, descripción o departamento..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
@@ -138,7 +141,7 @@ export function TruckAudit() {
             Pendientes
           </button>
           <span className="ml-auto text-xs text-gray-400 self-center">
-            {filtered.length} mostrando
+            {filtered.length} productos
           </span>
         </div>
       </div>
@@ -147,18 +150,19 @@ export function TruckAudit() {
         {filtered.length === 0 && (
           <div className="text-center py-12">
             <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-400 text-sm">No hay productos que coincidan con el filtro.</p>
+            <p className="text-gray-400 text-sm">No hay productos que coincidan.</p>
           </div>
         )}
 
-        {filtered.map((product) => {
-          const isAgotado = agotadosSet.has(product.ean);
-          const isAudited = !!truck.auditedProducts[product.ean];
+        {filtered.map((product, idx) => {
+          const isAgotado = agotadosSet.has(product.sku);
+          const isAudited = !!truck.auditedProducts[product.sku];
+          const key = product.sku || `${product.descripcion}-${idx}`;
 
           return (
             <button
-              key={product.ean || product.descripcion}
-              onClick={() => toggleAudited(truck.id, product.ean)}
+              key={key}
+              onClick={() => toggleAudited(truck.id, product.sku)}
               className={`w-full text-left rounded-xl border-2 p-3 transition-all active:scale-[0.98] ${
                 isAgotado
                   ? "bg-red-50 border-red-500 shadow-sm shadow-red-100"
@@ -183,7 +187,11 @@ export function TruckAudit() {
                   <div className="flex items-start justify-between gap-2">
                     <p
                       className={`text-sm font-semibold leading-tight ${
-                        isAgotado ? "text-red-800" : isAudited ? "text-green-800" : "text-gray-800"
+                        isAgotado
+                          ? "text-red-800"
+                          : isAudited
+                          ? "text-green-800"
+                          : "text-gray-800"
                       }`}
                     >
                       {product.descripcion || "(sin descripción)"}
@@ -196,8 +204,10 @@ export function TruckAudit() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                    {product.ean && (
-                      <span className="text-xs text-gray-400">EAN: {product.ean}</span>
+                    {product.sku && (
+                      <span className="text-xs text-gray-500 font-medium">
+                        SKU: {product.sku}
+                      </span>
                     )}
                     {product.departamento && (
                       <span className="text-xs text-gray-400">Dpto: {product.departamento}</span>
@@ -207,6 +217,9 @@ export function TruckAudit() {
                     )}
                     {product.unidades !== "" && product.unidades !== undefined && (
                       <span className="text-xs text-gray-400">Uds: {product.unidades}</span>
+                    )}
+                    {product.ean && (
+                      <span className="text-xs text-gray-400">UPC: {product.ean}</span>
                     )}
                   </div>
                   {isAgotado && (

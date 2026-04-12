@@ -25,3 +25,25 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## Artifacts
+
+### audit-camiones (React + Vite)
+- **Path**: `artifacts/audit-camiones/`
+- **Preview**: `/` (root)
+- **Purpose**: Truck receiving audit system for retail logistics
+- **Key files**:
+  - `src/types.ts` — data types (NaeProduct uses `sku` as primary key for cross-referencing)
+  - `src/lib/excelParser.ts` — Excel/CSV parser (NAE + Agotados files)
+  - `src/lib/truckClassifier.ts` — classifies trucks by NAE prefix + dept 91
+  - `src/lib/storage.ts` — LocalStorage persistence
+  - `src/context/AppContext.tsx` — global state
+  - `src/pages/Dashboard.tsx` — main truck list + file upload
+  - `src/pages/TruckAudit.tsx` — product audit checklist
+
+### Excel file format (real structure)
+- Row 0: Sheet title
+- Row 1: Empty
+- Row 2: Real headers (NAE, SKU, DESCRIPCION DE SKU, UPC, Bultos Esperados, Unidades Esperadas, ...)
+- Row 3+: Data (Agotados has a "Total" summary row to skip)
+- **Cross-referencing**: done by SKU column (not EAN/UPC)

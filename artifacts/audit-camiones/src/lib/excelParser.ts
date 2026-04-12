@@ -1,8 +1,24 @@
 import * as XLSX from "xlsx";
 import type { NaeProduct } from "../types";
 
-function normalizeKey(key: string): string {
+function findHeaderRow(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const row = rows[i] as (string | number | null | undefined)[];
+    const hasNae = row.some(
+      (cell) => typeof cell === "string" && cell.trim().toUpperCase() === "NAE"
+    );
+    const hasSku = row.some(
+      (cell) => typeof cell === "string" && cell.trim().toUpperCase() === "SKU"
+    );
+    if (hasNae && hasSku) return i;
+  }
+  return -1;
+}
+
+function normalizeKey(key: string | null | undefined): string {
+  if (!key) return `__empty_${Math.random()}`;
   return key
+    .toString()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -19,20 +35,28 @@ export function parseNaeFile(file: File): Promise<{ nae: string; products: NaePr
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+        const rawRows = XLSX.utils.sheet_to_json(sheet, {
+          header: 1,
+          defval: "",
+        }) as (string | number | null | undefined)[][];
 
-        if (rawRows.length < 2) {
-          reject(new Error("El archivo NAE está vacío o no tiene filas de datos."));
+        const headerRowIdx = findHeaderRow(rawRows);
+        if (headerRowIdx < 0) {
+          reject(
+            new Error(
+              "No se encontró la fila de encabezados (NAE, SKU) en el archivo. Verificá que sea un reporte NAE válido."
+            )
+          );
           return;
         }
 
-        const headerRow = rawRows[0] as string[];
+        const headerRow = rawRows[headerRowIdx] as (string | null | undefined)[];
         const normalizedHeaders = headerRow.map(normalizeKey);
 
         const products: NaeProduct[] = [];
         let detectedNae = "";
 
-        for (let i = 1; i < rawRows.length; i++) {
+        for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
           const row = rawRows[i] as (string | number)[];
           if (!row || row.every((cell) => cell === "" || cell === null || cell === undefined)) {
             continue;
@@ -43,50 +67,56 @@ export function parseNaeFile(file: File): Promise<{ nae: string; products: NaePr
             obj[header] = row[idx] as string | number | undefined;
           });
 
-          const naeVal =
-            (obj["nae"] ?? obj["numero_nae"] ?? obj["n_nae"] ?? obj["nae_"] ?? "") + "";
-          const eanVal =
-            (obj["ean"] ?? obj["cod_barras"] ?? obj["codigo_ean"] ?? obj["barcode"] ?? "") + "";
-          const descripVal =
-            (obj["descripcion"] ??
-              obj["descripcion_"] ??
-              obj["descrip"] ??
-              obj["descripcion_del_articulo"] ??
-              obj["nombre"] ??
-              "") + "";
-          const deptVal =
-            obj["departamento"] ??
-            obj["dpto"] ??
-            obj["depto"] ??
-            obj["dept"] ??
-            obj["cod_departamento"] ??
-            "";
-          const bultosVal = obj["bultos"] ?? obj["cantidad_bultos"] ?? obj["qty_bultos"] ?? "";
-          const unidadesVal =
-            obj["unidades"] ?? obj["cantidad"] ?? obj["uds"] ?? obj["qty"] ?? "";
+          const naeVal = (obj["nae"] ?? "").toString().trim();
+          const skuVal = (obj["sku"] ?? "").toString().trim();
+          const descripVal = (
+            obj["descripcion_de_sku"] ??
+            obj["descripcion_del_sku"] ??
+            obj["descripcion"] ??
+            obj["descripcion_sku"] ??
+            ""
+          ).toString().trim();
+          const deptVal = (obj["departamento"] ?? obj["dpto"] ?? "").toString().trim();
+          const upcVal = (obj["upc"] ?? "").toString().trim();
+          const bultosVal = obj["bultos_esperados"] ?? obj["bultos"] ?? "";
+          const unidadesVal = obj["unidades_esperadas"] ?? obj["unidades"] ?? "";
+
+          if (naeVal.toLowerCase() === "total" || (!skuVal && !descripVal)) continue;
 
           if (!detectedNae && naeVal) {
-            detectedNae = naeVal.toString().trim();
+            const match = naeVal.match(/^(\d+)/);
+            detectedNae = match ? match[1] : naeVal;
           }
 
           const product: NaeProduct = {
-            nae: naeVal.toString().trim(),
-            ean: eanVal.toString().trim(),
-            descripcion: descripVal.toString().trim(),
-            departamento: deptVal ? deptVal.toString().trim() : "",
+            nae: naeVal,
+            sku: skuVal,
+            ean: upcVal,
+            descripcion: descripVal,
+            departamento: deptVal,
             bultos: bultosVal ?? "",
             unidades: unidadesVal ?? "",
           };
 
-          if (product.ean || product.descripcion) {
+          if (product.sku || product.descripcion) {
             products.push(product);
           }
         }
 
         if (!detectedNae) {
-          const fileName = file.name;
-          const match = fileName.match(/(\d+)/);
+          const match = file.name.match(/(\d+)/);
           if (match) detectedNae = match[1];
+        }
+
+        if (products.length === 0) {
+          reject(
+            new Error(
+              `Archivo procesado pero no se encontraron productos. ` +
+              `Fila de encabezados detectada en fila ${headerRowIdx + 1}. ` +
+              `Verificá que el archivo tenga columnas SKU y DESCRIPCION DE SKU.`
+            )
+          );
+          return;
         }
 
         resolve({ nae: detectedNae, products });
@@ -108,18 +138,23 @@ export function parseAgotadosFile(file: File): Promise<Set<string>> {
         const workbook = XLSX.read(data, { type: "array" });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as unknown[][];
+        const rawRows = XLSX.utils.sheet_to_json(sheet, {
+          header: 1,
+          defval: "",
+        }) as (string | number | null | undefined)[][];
 
-        const eanSet = new Set<string>();
-        if (rawRows.length < 2) {
-          resolve(eanSet);
+        const skuSet = new Set<string>();
+
+        const headerRowIdx = findHeaderRow(rawRows);
+        if (headerRowIdx < 0) {
+          resolve(skuSet);
           return;
         }
 
-        const headerRow = rawRows[0] as string[];
+        const headerRow = rawRows[headerRowIdx] as (string | null | undefined)[];
         const normalizedHeaders = headerRow.map(normalizeKey);
 
-        for (let i = 1; i < rawRows.length; i++) {
+        for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
           const row = rawRows[i] as (string | number)[];
           if (!row || row.every((cell) => cell === "" || cell === null || cell === undefined)) {
             continue;
@@ -130,14 +165,16 @@ export function parseAgotadosFile(file: File): Promise<Set<string>> {
             obj[header] = row[idx] as string | number | undefined;
           });
 
-          const ean =
-            obj["ean"] ?? obj["cod_barras"] ?? obj["codigo_ean"] ?? obj["barcode"] ?? "";
-          if (ean) {
-            eanSet.add(ean.toString().trim());
+          const naeVal = (obj["nae"] ?? "").toString().trim();
+          if (naeVal.toLowerCase() === "total") continue;
+
+          const sku = (obj["sku"] ?? "").toString().trim();
+          if (sku) {
+            skuSet.add(sku);
           }
         }
 
-        resolve(eanSet);
+        resolve(skuSet);
       } catch (err) {
         reject(err);
       }
