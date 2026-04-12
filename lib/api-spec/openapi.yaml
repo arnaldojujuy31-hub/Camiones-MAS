@@ -1,29 +1,247 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Truck Audit API
 servers:
   - url: /api
-    description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: trucks
+  - name: agotados
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
-          description: Healthy
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+          description: Healthy
+
+  /trucks:
+    get:
+      operationId: listTrucks
+      tags: [trucks]
+      summary: List all trucks
+      responses:
+        "200":
+          description: List of trucks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TruckSummary"
+
+    post:
+      operationId: createTruck
+      tags: [trucks]
+      summary: Create a truck with its products
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTruckBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TruckSummary"
+
+  /trucks/{truckId}:
+    get:
+      operationId: getTruck
+      tags: [trucks]
+      summary: Get truck with full product and audit data
+      parameters:
+        - name: truckId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Truck detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TruckDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      operationId: updateTruck
+      tags: [trucks]
+      summary: Update truck times or status
+      parameters:
+        - name: truckId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTruckBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TruckSummary"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      operationId: deleteTruck
+      tags: [trucks]
+      summary: Delete a truck and all its data
+      parameters:
+        - name: truckId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /trucks/{truckId}/audit/{sku}:
+    put:
+      operationId: upsertAuditEntry
+      tags: [trucks]
+      summary: Upsert audit entry for a product
+      parameters:
+        - name: truckId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertAuditEntryBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEntryResponse"
+
+  /trucks/{truckId}/departments/{department}/finalize:
+    post:
+      operationId: finalizeDepartment
+      tags: [trucks]
+      summary: Finalize a department audit
+      parameters:
+        - name: truckId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: department
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FinalizeDepartmentBody"
+      responses:
+        "200":
+          description: Finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeptFinalizationResponse"
+
+  /trucks/{truckId}/finalize:
+    post:
+      operationId: finalizeTruck
+      tags: [trucks]
+      summary: Finalize the entire truck audit
+      parameters:
+        - name: truckId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Finalized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TruckSummary"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /agotados:
+    get:
+      operationId: getAgotados
+      tags: [agotados]
+      summary: Get all agotados SKUs
+      responses:
+        "200":
+          description: List of SKUs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgotadosResponse"
+
+    post:
+      operationId: setAgotados
+      tags: [agotados]
+      summary: Replace all agotados SKUs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAgotadosBody"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgotadosResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +249,210 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    TruckSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        nae:
+          type: string
+        type:
+          type: string
+        arrivalTime:
+          type: string
+          nullable: true
+        startUnloadTime:
+          type: string
+          nullable: true
+        status:
+          type: string
+        productCount:
+          type: integer
+        auditedCount:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, nae, type, status, productCount, auditedCount, createdAt]
+
+    ProductAudit:
+      type: object
+      properties:
+        sku:
+          type: string
+        ean:
+          type: string
+        description:
+          type: string
+        department:
+          type: string
+        expectedBultos:
+          type: number
+          nullable: true
+        expectedUnidades:
+          type: number
+          nullable: true
+        auditedBultos:
+          type: number
+          nullable: true
+        auditedUnidades:
+          type: number
+          nullable: true
+        auditorName:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+          nullable: true
+      required: [sku, ean, description, department]
+
+    DeptFinalizationResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        truckId:
+          type: integer
+        department:
+          type: string
+        auditorName:
+          type: string
+        finalizedAt:
+          type: string
+      required: [id, truckId, department, auditorName, finalizedAt]
+
+    TruckDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        nae:
+          type: string
+        type:
+          type: string
+        arrivalTime:
+          type: string
+          nullable: true
+        startUnloadTime:
+          type: string
+          nullable: true
+        status:
+          type: string
+        createdAt:
+          type: string
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProductAudit"
+        deptFinalizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeptFinalizationResponse"
+      required: [id, nae, type, status, createdAt, products, deptFinalizations]
+
+    CreateTruckBody:
+      type: object
+      properties:
+        nae:
+          type: string
+        type:
+          type: string
+        products:
+          type: array
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+              ean:
+                type: string
+              description:
+                type: string
+              department:
+                type: string
+              expectedBultos:
+                type: number
+                nullable: true
+              expectedUnidades:
+                type: number
+                nullable: true
+            required: [sku, ean, description, department]
+      required: [nae, type, products]
+
+    UpdateTruckBody:
+      type: object
+      properties:
+        arrivalTime:
+          type: string
+          nullable: true
+        startUnloadTime:
+          type: string
+          nullable: true
+        status:
+          type: string
+
+    UpsertAuditEntryBody:
+      type: object
+      properties:
+        auditedBultos:
+          type: number
+          nullable: true
+        auditedUnidades:
+          type: number
+          nullable: true
+        auditorName:
+          type: string
+          nullable: true
+
+    AuditEntryResponse:
+      type: object
+      properties:
+        truckId:
+          type: integer
+        sku:
+          type: string
+        auditedBultos:
+          type: number
+          nullable: true
+        auditedUnidades:
+          type: number
+          nullable: true
+        auditorName:
+          type: string
+          nullable: true
+        updatedAt:
+          type: string
+      required: [truckId, sku, updatedAt]
+
+    FinalizeDepartmentBody:
+      type: object
+      properties:
+        auditorName:
+          type: string
+      required: [auditorName]
+
+    AgotadosResponse:
+      type: object
+      properties:
+        skus:
+          type: array
+          items:
+            type: string
+      required: [skus]
+
+    SetAgotadosBody:
+      type: object
+      properties:
+        skus:
+          type: array
+          items:
+            type: string
+      required: [skus]

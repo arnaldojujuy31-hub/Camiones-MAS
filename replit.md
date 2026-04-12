@@ -2,48 +2,62 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+pnpm workspace monorepo using TypeScript. Sistema de Auditoría de Camiones — a multi-user mobile-first web app for retail logistics teams to audit incoming trucks in real-time.
 
 ## Stack
 
 - **Monorepo tool**: pnpm workspaces
 - **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite + Tailwind CSS + shadcn/ui (artifacts/audit-camiones)
+- **Backend**: Express 5 + Pino logging (artifacts/api-server)
+- **Database**: PostgreSQL via Drizzle ORM (lib/db)
+- **API client**: React Query + Orval-generated hooks (lib/api-client-react)
+- **API spec**: OpenAPI 3.1 → Orval codegen (lib/api-spec)
+- **Zod schemas**: auto-generated from OpenAPI spec (lib/api-zod)
 
-## Key Commands
+## Architecture
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+### Database Schema (lib/db/src/schema/)
+- `trucks` — truck records (nae, type, arrivalTime, startUnloadTime, status)
+- `truck_products` — products per truck (sku, ean, description, department, expectedBultos, expectedUnidades)
+- `audit_entries` — per-product audit quantities (auditedBultos, auditedUnidades, auditorName)
+- `dept_finalizations` — department finalization records (department, auditorName, finalizedAt)
+- `agotados` — global set of out-of-stock SKUs
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+### Truck Types (truckClassifier.ts)
+- NAE prefix "1" → Secos Moreno
+- NAE prefix "8" → Secos Escobar
+- NAE prefix "5" + dept 91 → Congelados
+- NAE prefix "5" + other → Fríos
 
-## Artifacts
+### Excel File Format (excelParser.ts)
+- Row 0: title, Row 1: empty, Row 2: real headers (NAE, SKU, DESCRIPCION DE SKU, UPC, Bultos Esperados, Unidades Esperadas)
+- Data starts at row 3
+- Agotados file has División/Clase columns and a "Total" summary row to skip
 
-### audit-camiones (React + Vite)
-- **Path**: `artifacts/audit-camiones/`
-- **Preview**: `/` (root)
-- **Purpose**: Truck receiving audit system for retail logistics
-- **Key files**:
-  - `src/types.ts` — data types (NaeProduct uses `sku` as primary key for cross-referencing)
-  - `src/lib/excelParser.ts` — Excel/CSV parser (NAE + Agotados files)
-  - `src/lib/truckClassifier.ts` — classifies trucks by NAE prefix + dept 91
-  - `src/lib/storage.ts` — LocalStorage persistence
-  - `src/context/AppContext.tsx` — global state
-  - `src/pages/Dashboard.tsx` — main truck list + file upload
-  - `src/pages/TruckAudit.tsx` — product audit checklist
+### API Routes (artifacts/api-server/src/routes/)
+- GET/POST /api/trucks — list / create truck
+- GET/PATCH/DELETE /api/trucks/:truckId — detail / update / delete
+- PUT /api/trucks/:truckId/audit/:sku — upsert audit entry
+- POST /api/trucks/:truckId/departments/:dept/finalize — finalize dept
+- POST /api/trucks/:truckId/finalize — finalize truck
+- GET/POST /api/agotados — get/set agotados SKUs
 
-### Excel file format (real structure)
-- Row 0: Sheet title
-- Row 1: Empty
-- Row 2: Real headers (NAE, SKU, DESCRIPCION DE SKU, UPC, Bultos Esperados, Unidades Esperadas, ...)
-- Row 3+: Data (Agotados has a "Total" summary row to skip)
-- **Cross-referencing**: done by SKU column (not EAN/UPC)
+### Frontend Pages (artifacts/audit-camiones/src/)
+- `Dashboard` — lists trucks grouped by type with polling (5s), file upload
+- `TruckAudit` — per-truck audit with quantity inputs (debounced API save), dept filter, faltantes/sobrantes, dept finalization modal, truck finalization, Excel export
+
+### Key Libraries
+- `xlsx` — Excel parsing (client) and export generation
+- `@tanstack/react-query` — data fetching with polling
+- `wouter` — client-side routing
+
+## Ports
+- Frontend: PORT env var (set by Replit)
+- API server: 8080
+
+## Codegen Commands
+```
+pnpm --filter @workspace/api-spec run codegen   # regenerate API client
+pnpm --filter @workspace/db run push             # push schema to DB
+```

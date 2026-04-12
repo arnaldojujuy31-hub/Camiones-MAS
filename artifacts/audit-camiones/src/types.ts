@@ -59,19 +59,3 @@ export interface NaeProduct {
   unidades: number | string;
   [key: string]: string | number | undefined;
 }
-
-export interface Truck {
-  id: string;
-  nae: string;
-  type: TruckType;
-  products: NaeProduct[];
-  arrivalTime: string;
-  startUnloadTime: string;
-  auditedProducts: Record<string, boolean>;
-  createdAt: number;
-}
-
-export interface AppState {
-  trucks: Truck[];
-  agotadosSet: Set<string>;
-}

@@ -1,41 +1,58 @@
 import { useState } from "react";
-import { Truck, Search, Trash2, ChevronDown, ChevronUp, PackageOpen } from "lucide-react";
+import { Truck, Search, Trash2, ChevronDown, ChevronUp, PackageOpen, RefreshCw } from "lucide-react";
+import { useListTrucks, useGetAgotados, getListTrucksQueryKey, deleteTruck } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FileUploader } from "../components/FileUploader";
 import { TruckCard } from "../components/TruckCard";
-import { useApp } from "../context/AppContext";
 import { TRUCK_CONFIGS } from "../types";
-import type { TruckType } from "../types";
 
-const TYPE_ORDER: TruckType[] = ["secos-moreno", "secos-escobar", "congelados", "frios"];
+const TYPE_ORDER = ["secos-moreno", "secos-escobar", "congelados", "frios"] as const;
 
 export function Dashboard() {
-  const { trucks, clearAllData, agotadosSet } = useApp();
   const [search, setSearch] = useState("");
   const [showUpload, setShowUpload] = useState(true);
   const [confirmClear, setConfirmClear] = useState(false);
+  const qc = useQueryClient();
+
+  const { data: trucks = [], isLoading, error } = useListTrucks({
+    query: { refetchInterval: 5000 },
+  });
+
+  const { data: agotadosData } = useGetAgotados({
+    query: { refetchInterval: 30000 },
+  });
+
+  const agotadosCount = agotadosData?.skus?.length ?? 0;
 
   const filtered = trucks.filter((t) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
+    const cfg = TRUCK_CONFIGS[t.type as keyof typeof TRUCK_CONFIGS];
     return (
       t.nae.toLowerCase().includes(q) ||
-      TRUCK_CONFIGS[t.type].label.toLowerCase().includes(q)
+      cfg?.label.toLowerCase().includes(q) ||
+      t.status.toLowerCase().includes(q)
     );
   });
 
-  const grouped = TYPE_ORDER.reduce<Record<TruckType, typeof filtered>>(
+  const grouped = TYPE_ORDER.reduce<Record<string, typeof filtered>>(
     (acc, type) => {
       acc[type] = filtered.filter((t) => t.type === type);
       return acc;
     },
-    {} as Record<TruckType, typeof filtered>
+    {} as Record<string, typeof filtered>
   );
 
-  const totalAudited = trucks.reduce(
-    (sum, t) => sum + Object.keys(t.auditedProducts || {}).length,
-    0
-  );
-  const totalProducts = trucks.reduce((sum, t) => sum + t.products.length, 0);
+  const totalAudited = trucks.reduce((sum, t) => sum + t.auditedCount, 0);
+  const totalProducts = trucks.reduce((sum, t) => sum + t.productCount, 0);
+
+  async function handleClearAll() {
+    for (const truck of trucks) {
+      await deleteTruck(truck.id);
+    }
+    await qc.invalidateQueries({ queryKey: getListTrucksQueryKey() });
+    setConfirmClear(false);
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -44,8 +61,8 @@ export function Dashboard() {
           <div className="flex items-center gap-2">
             <Truck className="w-6 h-6 text-blue-600" />
             <span className="font-bold text-gray-900 text-lg leading-tight">
-              Auditoría<br className="hidden sm:block" />
-              <span className="text-blue-600 sm:ml-1">Camiones</span>
+              Auditoría{" "}
+              <span className="text-blue-600">Camiones</span>
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -54,14 +71,21 @@ export function Dashboard() {
                 <span className="font-medium text-gray-700">{trucks.length} camiones</span>
                 <span>·</span>
                 <span>{totalAudited}/{totalProducts} auditados</span>
-                {agotadosSet.size > 0 && (
+                {agotadosCount > 0 && (
                   <>
                     <span>·</span>
-                    <span className="text-red-600 font-semibold">{agotadosSet.size} agotados</span>
+                    <span className="text-red-600 font-semibold">{agotadosCount} agotados</span>
                   </>
                 )}
               </>
             )}
+            <button
+              onClick={() => qc.invalidateQueries({ queryKey: getListTrucksQueryKey() })}
+              className="p-1 rounded text-gray-400 hover:text-blue-600"
+              title="Actualizar"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </header>
@@ -81,6 +105,13 @@ export function Dashboard() {
             </div>
           )}
         </div>
+
+        {isLoading && (
+          <div className="text-center py-6 text-gray-400 text-sm">Cargando camiones...</div>
+        )}
+        {error && (
+          <div className="text-center py-6 text-red-500 text-sm">Error al cargar datos. Verificá la conexión.</div>
+        )}
 
         {trucks.length > 0 && (
           <div className="flex items-center gap-2">
@@ -104,16 +135,10 @@ export function Dashboard() {
               </button>
             ) : (
               <div className="flex gap-1">
-                <button
-                  onClick={() => { clearAllData(); setConfirmClear(false); }}
-                  className="text-xs bg-red-500 text-white px-3 py-2 rounded-xl font-semibold"
-                >
-                  Limpiar todo
+                <button onClick={handleClearAll} className="text-xs bg-red-500 text-white px-3 py-2 rounded-xl font-semibold">
+                  Borrar todo
                 </button>
-                <button
-                  onClick={() => setConfirmClear(false)}
-                  className="text-xs bg-gray-200 text-gray-700 px-3 py-2 rounded-xl"
-                >
+                <button onClick={() => setConfirmClear(false)} className="text-xs bg-gray-200 text-gray-700 px-3 py-2 rounded-xl">
                   Cancelar
                 </button>
               </div>
@@ -121,7 +146,7 @@ export function Dashboard() {
           </div>
         )}
 
-        {trucks.length === 0 && (
+        {!isLoading && trucks.length === 0 && (
           <div className="text-center py-12">
             <PackageOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 font-medium">No hay camiones cargados</p>
@@ -131,7 +156,7 @@ export function Dashboard() {
 
         {TYPE_ORDER.map((type) => {
           const group = grouped[type];
-          if (group.length === 0) return null;
+          if (!group || group.length === 0) return null;
           const cfg = TRUCK_CONFIGS[type];
           return (
             <section key={type}>

@@ -1,20 +1,24 @@
 import { useRef, useState } from "react";
 import { Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { parseNaeFile, parseAgotadosFile } from "../lib/excelParser";
 import { classifyTruck } from "../lib/truckClassifier";
-import { useApp } from "../context/AppContext";
-import type { Truck } from "../types";
+import {
+  createTruck,
+  setAgotados,
+  getListTrucksQueryKey,
+  getGetAgotadosQueryKey,
+} from "@workspace/api-client-react";
 
 type UploadStatus = "idle" | "loading" | "success" | "error";
 
 interface UploadState {
   status: UploadStatus;
   message: string;
-  fileName?: string;
 }
 
 export function FileUploader() {
-  const { addTruck, setAgotados, agotadosSet } = useApp();
+  const qc = useQueryClient();
   const naeInputRef = useRef<HTMLInputElement>(null);
   const agotadosInputRef = useRef<HTMLInputElement>(null);
   const [naeState, setNaeState] = useState<UploadState>({ status: "idle", message: "" });
@@ -23,35 +27,34 @@ export function FileUploader() {
   async function handleNaeUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    setNaeState({ status: "loading", message: "Procesando archivo...", fileName: file.name });
+    setNaeState({ status: "loading", message: "Procesando archivo..." });
     try {
       const { nae, products } = await parseNaeFile(file);
       if (!nae) throw new Error("No se pudo detectar el número de NAE.");
       if (products.length === 0) throw new Error("No se encontraron productos en el archivo.");
 
       const type = classifyTruck(nae, products);
-      const truck: Truck = {
-        id: `${nae}-${Date.now()}`,
+      await createTruck({
         nae,
         type,
-        products,
-        arrivalTime: "",
-        startUnloadTime: "",
-        auditedProducts: {},
-        createdAt: Date.now(),
-      };
-      addTruck(truck);
+        products: products.map((p) => ({
+          sku: p.sku,
+          ean: p.ean ?? "",
+          description: p.descripcion,
+          department: p.departamento?.toString() ?? "",
+          expectedBultos: p.bultos !== "" ? Number(p.bultos) : null,
+          expectedUnidades: p.unidades !== "" ? Number(p.unidades) : null,
+        })),
+      });
+      await qc.invalidateQueries({ queryKey: getListTrucksQueryKey() });
       setNaeState({
         status: "success",
         message: `NAE ${nae} cargado — ${products.length} productos`,
-        fileName: file.name,
       });
     } catch (err) {
       setNaeState({
         status: "error",
         message: err instanceof Error ? err.message : "Error al procesar el archivo.",
-        fileName: file.name,
       });
     }
     if (naeInputRef.current) naeInputRef.current.value = "";
@@ -60,22 +63,19 @@ export function FileUploader() {
   async function handleAgotadosUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    setAgotadosState({ status: "loading", message: "Procesando...", fileName: file.name });
+    setAgotadosState({ status: "loading", message: "Procesando..." });
     try {
-      const eans = await parseAgotadosFile(file);
-      const merged = new Set([...agotadosSet, ...eans]);
-      setAgotados(merged);
+      const skuSet = await parseAgotadosFile(file);
+      await setAgotados({ skus: Array.from(skuSet) });
+      await qc.invalidateQueries({ queryKey: getGetAgotadosQueryKey() });
       setAgotadosState({
         status: "success",
-        message: `${eans.size} productos agotados cargados`,
-        fileName: file.name,
+        message: `${skuSet.size} SKUs agotados cargados`,
       });
     } catch (err) {
       setAgotadosState({
         status: "error",
         message: err instanceof Error ? err.message : "Error al procesar el archivo.",
-        fileName: file.name,
       });
     }
     if (agotadosInputRef.current) agotadosInputRef.current.value = "";
@@ -94,13 +94,12 @@ export function FileUploader() {
       />
       <UploadCard
         title="Agotados en Tránsito"
-        description="Mercadería crítica (irá resaltada en rojo)"
+        description="Mercadería crítica (se resalta en rojo)"
         accept=".xlsx,.xls,.csv"
         inputRef={agotadosInputRef}
         state={agotadosState}
         onChange={handleAgotadosUpload}
         color="red"
-        badge={agotadosSet.size > 0 ? `${agotadosSet.size} cargados` : undefined}
       />
     </div>
   );
@@ -151,7 +150,6 @@ function UploadCard({ title, description, accept, inputRef, state, onChange, col
         onChange={onChange}
         onClick={(e) => e.stopPropagation()}
       />
-
       <div className="flex flex-col items-center text-center gap-2 py-2">
         {state.status === "loading" ? (
           <Loader2 className={`w-8 h-8 ${colorMap.icon} animate-spin`} />
@@ -162,26 +160,15 @@ function UploadCard({ title, description, accept, inputRef, state, onChange, col
         ) : (
           <Upload className={`w-8 h-8 ${colorMap.icon}`} />
         )}
-
         <div>
           <p className="font-semibold text-gray-800 text-sm">{title}</p>
           <p className="text-xs text-gray-500 mt-0.5">{description}</p>
         </div>
-
         {state.status !== "idle" && (
-          <p
-            className={`text-xs font-medium mt-1 ${
-              state.status === "success"
-                ? "text-green-600"
-                : state.status === "error"
-                ? "text-red-600"
-                : "text-gray-500"
-            }`}
-          >
+          <p className={`text-xs font-medium mt-1 ${state.status === "success" ? "text-green-600" : state.status === "error" ? "text-red-600" : "text-gray-500"}`}>
             {state.message}
           </p>
         )}
-
         {state.status === "idle" && (
           <span className={`text-xs px-3 py-1.5 rounded-lg font-semibold ${colorMap.btn} mt-1`}>
             Seleccionar archivo
