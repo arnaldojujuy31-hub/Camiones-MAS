@@ -1,0 +1,47 @@
+Título del Proyecto: Sistema de Auditoría de Recepción de Camiones (Logística Retail)
+
+Descripción General:
+Crea una aplicación web (React + Vite o Streamlit) para realizar auditorías de control de camiones. La app debe permitir cargar dos tipos de archivos CSV/Excel:
+
+Reporte NAE: Contiene el detalle de la mercadería del camión.
+
+Reporte Agotados en Tránsito: Mercadería crítica que debe marcarse visualmente.
+
+Lógica de Clasificación de Camiones:
+El sistema debe identificar automáticamente el tipo de camión según el número de NAE o el Departamento:
+
+Secos (Moreno): NAE comienza con "1". (Estilo: Color cálido/neutro, icono de caja).
+
+Secos (Escobar): NAE comienza con "8". (Estilo: Color cálido/neutro, icono de caja).
+
+Congelados: NAE comienza con "5" Y contiene productos del Dpto 91. (Estilo: Color celeste/azul, icono de copo de nieve ❄️).
+
+Fríos: NAE comienza con "5" Y NO contiene productos del Dpto 91. (Estilo: Color azul suave, icono de termómetro 🌡️).
+
+Funcionalidades Principales:
+
+Dashboard de Carga: Interfaz para subir los archivos. Al cargar un NAE, se debe generar una "Tarjeta de Camión" identificatoria con el icono y color correspondiente.
+
+Registro de Tiempos: Cada tarjeta debe permitir ingresar (input de fecha y hora):
+
+Hora de llegada a tienda.
+
+Hora de inicio de descarga.
+
+Módulo de Auditoría:
+
+Al hacer clic en un camión, mostrar la lista de productos del reporte NAE.
+
+Cruce de datos: Si un producto del NAE aparece en el reporte de "Agotados en Tránsito", la fila debe resaltarse en ROJO brillante para alertar que debe ir directo al piso de venta.
+
+Checklist interactivo para marcar producto auditado.
+
+Persistencia: Los datos de auditoría deben guardarse localmente (LocalStorage o base de datos simple) para no perder el progreso al refrescar.
+
+Requerimientos de UI/UX:
+
+Diseño limpio y "Mobile First" (los auditores suelen usar tablets o celulares en el muelle).
+
+Tarjetas visuales grandes para cada camión.
+
+Buscador por número de NAE o Departamento dentro de la auditoría.
