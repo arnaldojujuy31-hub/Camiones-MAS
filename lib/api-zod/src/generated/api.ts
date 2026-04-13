@@ -193,7 +193,7 @@ export const GetAgotadosResponse = zod.object({
 });
 
 /**
- * @summary Replace all agotados SKUs
+ * @summary Merge agotados SKUs (adds without replacing existing)
  */
 export const SetAgotadosBody = zod.object({
   skus: zod.array(zod.string()),

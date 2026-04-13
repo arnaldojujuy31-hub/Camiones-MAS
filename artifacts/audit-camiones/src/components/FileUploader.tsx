@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
-import { Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { Upload, CheckCircle, AlertCircle, Loader2, Trash2, AlertTriangle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseNaeFile, parseAgotadosFile } from "../lib/excelParser";
 import { classifyTruck } from "../lib/truckClassifier";
 import {
   createTruck,
   setAgotados,
+  useClearAgotados,
+  useGetAgotados,
   getListTrucksQueryKey,
   getGetAgotadosQueryKey,
 } from "@workspace/api-client-react";
@@ -23,6 +25,21 @@ export function FileUploader() {
   const agotadosInputRef = useRef<HTMLInputElement>(null);
   const [naeState, setNaeState] = useState<UploadState>({ status: "idle", message: "" });
   const [agotadosState, setAgotadosState] = useState<UploadState>({ status: "idle", message: "" });
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  const { data: agotadosData } = useGetAgotados();
+  const agotadosCount = agotadosData?.skus?.length ?? 0;
+
+  const clearAgotados = useClearAgotados({
+    mutation: {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetAgotadosQueryKey() });
+        qc.invalidateQueries({ queryKey: getListTrucksQueryKey() });
+        setAgotadosState({ status: "idle", message: "" });
+        setConfirmClear(false);
+      },
+    },
+  });
 
   async function handleNaeUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -66,11 +83,20 @@ export function FileUploader() {
     setAgotadosState({ status: "loading", message: "Procesando..." });
     try {
       const skuSet = await parseAgotadosFile(file);
+      if (skuSet.size === 0) {
+        setAgotadosState({
+          status: "error",
+          message: "No se encontraron SKUs en el archivo. Verificá el formato.",
+        });
+        if (agotadosInputRef.current) agotadosInputRef.current.value = "";
+        return;
+      }
       await setAgotados({ skus: Array.from(skuSet) });
       await qc.invalidateQueries({ queryKey: getGetAgotadosQueryKey() });
+      await qc.invalidateQueries({ queryKey: getListTrucksQueryKey() });
       setAgotadosState({
         status: "success",
-        message: `${skuSet.size} SKUs agotados cargados`,
+        message: `+${skuSet.size} SKUs agregados`,
       });
     } catch (err) {
       setAgotadosState({
@@ -82,25 +108,68 @@ export function FileUploader() {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <UploadCard
-        title="Reporte NAE"
-        description="Detalle de mercadería del camión"
-        accept=".xlsx,.xls,.csv"
-        inputRef={naeInputRef}
-        state={naeState}
-        onChange={handleNaeUpload}
-        color="blue"
-      />
-      <UploadCard
-        title="Agotados en Tránsito"
-        description="Mercadería crítica (se resalta en rojo)"
-        accept=".xlsx,.xls,.csv"
-        inputRef={agotadosInputRef}
-        state={agotadosState}
-        onChange={handleAgotadosUpload}
-        color="red"
-      />
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <UploadCard
+          title="Reporte NAE"
+          description="Detalle de mercadería del camión"
+          accept=".xlsx,.xls,.csv"
+          inputRef={naeInputRef}
+          state={naeState}
+          onChange={handleNaeUpload}
+          color="blue"
+        />
+        <UploadCard
+          title="Agotados en Tránsito"
+          description={
+            agotadosCount > 0
+              ? `${agotadosCount} SKUs cargados — se suma al total`
+              : "Se agrega al listado global (no reemplaza)"
+          }
+          accept=".xlsx,.xls,.csv"
+          inputRef={agotadosInputRef}
+          state={agotadosState}
+          onChange={handleAgotadosUpload}
+          color="red"
+        />
+      </div>
+
+      {agotadosCount > 0 && (
+        <div className="flex items-center justify-between bg-red-50 border border-red-300 rounded-xl px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <span className="text-sm font-semibold text-red-700">
+              {agotadosCount} SKUs agotados en tránsito cargados en total
+            </span>
+          </div>
+          {!confirmClear ? (
+            <button
+              onClick={() => setConfirmClear(true)}
+              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium ml-3 shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Limpiar
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 ml-3">
+              <span className="text-xs text-red-700 font-medium">¿Borrar todos?</span>
+              <button
+                onClick={() => clearAgotados.mutate({})}
+                disabled={clearAgotados.isPending}
+                className="text-xs bg-red-600 text-white px-2 py-1 rounded-lg font-semibold"
+              >
+                {clearAgotados.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : "Sí"}
+              </button>
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-lg font-semibold"
+              >
+                No
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -113,10 +182,9 @@ interface UploadCardProps {
   state: UploadState;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   color: "blue" | "red";
-  badge?: string;
 }
 
-function UploadCard({ title, description, accept, inputRef, state, onChange, color, badge }: UploadCardProps) {
+function UploadCard({ title, description, accept, inputRef, state, onChange, color }: UploadCardProps) {
   const colorMap = {
     blue: {
       border: "border-blue-200 hover:border-blue-400",
@@ -137,11 +205,6 @@ function UploadCard({ title, description, accept, inputRef, state, onChange, col
       className={`relative border-2 border-dashed rounded-2xl p-4 transition-all cursor-pointer ${colorMap.border} ${colorMap.bg}`}
       onClick={() => inputRef.current?.click()}
     >
-      {badge && (
-        <span className="absolute top-3 right-3 text-xs bg-green-100 text-green-700 border border-green-300 rounded-full px-2 py-0.5 font-semibold">
-          {badge}
-        </span>
-      )}
       <input
         ref={inputRef}
         type="file"
@@ -169,11 +232,9 @@ function UploadCard({ title, description, accept, inputRef, state, onChange, col
             {state.message}
           </p>
         )}
-        {state.status === "idle" && (
-          <span className={`text-xs px-3 py-1.5 rounded-lg font-semibold ${colorMap.btn} mt-1`}>
-            Seleccionar archivo
-          </span>
-        )}
+        <span className={`text-xs px-3 py-1.5 rounded-lg font-semibold ${colorMap.btn} mt-1`}>
+          Seleccionar archivo
+        </span>
       </div>
     </div>
   );

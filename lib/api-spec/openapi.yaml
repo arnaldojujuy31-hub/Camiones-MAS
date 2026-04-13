@@ -227,7 +227,7 @@ paths:
     post:
       operationId: setAgotados
       tags: [agotados]
-      summary: Replace all agotados SKUs
+      summary: Merge agotados SKUs (adds without replacing existing)
       requestBody:
         required: true
         content:
@@ -241,6 +241,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AgotadosResponse"
+
+    delete:
+      operationId: clearAgotados
+      tags: [agotados]
+      summary: Remove all agotados SKUs
+      responses:
+        "204":
+          description: Cleared
 
 components:
   schemas:

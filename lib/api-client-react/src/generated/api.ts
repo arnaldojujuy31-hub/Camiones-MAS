@@ -894,7 +894,7 @@ export function useGetAgotados<
 }
 
 /**
- * @summary Replace all agotados SKUs
+ * @summary Merge agotados SKUs (adds without replacing existing)
  */
 export const getSetAgotadosUrl = () => {
   return `/api/agotados`;
@@ -957,7 +957,7 @@ export type SetAgotadosMutationBody = BodyType<SetAgotadosBody>;
 export type SetAgotadosMutationError = ErrorType<unknown>;
 
 /**
- * @summary Replace all agotados SKUs
+ * @summary Merge agotados SKUs (adds without replacing existing)
  */
 export const useSetAgotados = <
   TError = ErrorType<unknown>,
@@ -977,4 +977,83 @@ export const useSetAgotados = <
   TContext
 > => {
   return useMutation(getSetAgotadosMutationOptions(options));
+};
+
+/**
+ * @summary Remove all agotados SKUs
+ */
+export const getClearAgotadosUrl = () => {
+  return `/api/agotados`;
+};
+
+export const clearAgotados = async (options?: RequestInit): Promise<void> => {
+  return customFetch<void>(getClearAgotadosUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getClearAgotadosMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAgotados>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof clearAgotados>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["clearAgotados"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof clearAgotados>>,
+    void
+  > = () => {
+    return clearAgotados(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ClearAgotadosMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearAgotados>>
+>;
+
+export type ClearAgotadosMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Remove all agotados SKUs
+ */
+export const useClearAgotados = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof clearAgotados>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof clearAgotados>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getClearAgotadosMutationOptions(options));
 };
