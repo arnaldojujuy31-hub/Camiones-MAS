@@ -26,6 +26,7 @@ export const ListTrucksResponseItem = zod.object({
   status: zod.string(),
   productCount: zod.number(),
   auditedCount: zod.number(),
+  agotadoCount: zod.number(),
   createdAt: zod.string(),
 });
 export const ListTrucksResponse = zod.array(ListTrucksResponseItem);
@@ -110,6 +111,7 @@ export const UpdateTruckResponse = zod.object({
   status: zod.string(),
   productCount: zod.number(),
   auditedCount: zod.number(),
+  agotadoCount: zod.number(),
   createdAt: zod.string(),
 });
 
@@ -179,6 +181,7 @@ export const FinalizeTruckResponse = zod.object({
   status: zod.string(),
   productCount: zod.number(),
   auditedCount: zod.number(),
+  agotadoCount: zod.number(),
   createdAt: zod.string(),
 });
 

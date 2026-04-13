@@ -22,6 +22,7 @@ export interface TruckSummary {
   status: string;
   productCount: number;
   auditedCount: number;
+  agotadoCount: number;
   createdAt: string;
 }
 

@@ -279,9 +279,11 @@ components:
           type: integer
         auditedCount:
           type: integer
+        agotadoCount:
+          type: integer
         createdAt:
           type: string
-      required: [id, nae, type, status, productCount, auditedCount, createdAt]
+      required: [id, nae, type, status, productCount, auditedCount, agotadoCount, createdAt]
 
     ProductAudit:
       type: object

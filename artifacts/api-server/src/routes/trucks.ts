@@ -6,6 +6,7 @@ import {
   truckProductsTable,
   auditEntriesTable,
   deptFinalizationsTable,
+  agotadosTable,
 } from "@workspace/db";
 import {
   CreateTruckBody,
@@ -22,36 +23,61 @@ import {
 
 const router: IRouter = Router();
 
+async function getTruckStats(truckId: number) {
+  const [productRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(truckProductsTable)
+    .where(eq(truckProductsTable.truckId, truckId));
+
+  const [auditedRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(auditEntriesTable)
+    .where(
+      and(
+        eq(auditEntriesTable.truckId, truckId),
+        sql`${auditEntriesTable.auditedUnidades} is not null`
+      )
+    );
+
+  const [agotadoRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(truckProductsTable)
+    .innerJoin(agotadosTable, eq(truckProductsTable.sku, agotadosTable.sku))
+    .where(eq(truckProductsTable.truckId, truckId));
+
+  return {
+    productCount: productRow?.count ?? 0,
+    auditedCount: auditedRow?.count ?? 0,
+    agotadoCount: agotadoRow?.count ?? 0,
+  };
+}
+
+function formatTruckSummary(
+  truck: typeof trucksTable.$inferSelect,
+  stats: { productCount: number; auditedCount: number; agotadoCount: number }
+) {
+  return {
+    id: truck.id,
+    nae: truck.nae,
+    type: truck.type,
+    arrivalTime: truck.arrivalTime,
+    startUnloadTime: truck.startUnloadTime,
+    status: truck.status,
+    productCount: stats.productCount,
+    auditedCount: stats.auditedCount,
+    agotadoCount: stats.agotadoCount,
+    createdAt: truck.createdAt.toISOString(),
+  };
+}
+
 // GET /trucks
 router.get("/trucks", async (req, res): Promise<void> => {
   const trucks = await db.select().from(trucksTable).orderBy(trucksTable.createdAt);
 
   const summaries = await Promise.all(
     trucks.map(async (truck) => {
-      const [productRow] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(truckProductsTable)
-        .where(eq(truckProductsTable.truckId, truck.id));
-      const [auditedRow] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(auditEntriesTable)
-        .where(
-          and(
-            eq(auditEntriesTable.truckId, truck.id),
-            sql`(${auditEntriesTable.auditedBultos} is not null or ${auditEntriesTable.auditedUnidades} is not null)`
-          )
-        );
-      return {
-        id: truck.id,
-        nae: truck.nae,
-        type: truck.type,
-        arrivalTime: truck.arrivalTime,
-        startUnloadTime: truck.startUnloadTime,
-        status: truck.status,
-        productCount: productRow?.count ?? 0,
-        auditedCount: auditedRow?.count ?? 0,
-        createdAt: truck.createdAt.toISOString(),
-      };
+      const stats = await getTruckStats(truck.id);
+      return formatTruckSummary(truck, stats);
     })
   );
 
@@ -87,17 +113,8 @@ router.post("/trucks", async (req, res): Promise<void> => {
     );
   }
 
-  res.status(201).json({
-    id: truck.id,
-    nae: truck.nae,
-    type: truck.type,
-    arrivalTime: truck.arrivalTime,
-    startUnloadTime: truck.startUnloadTime,
-    status: truck.status,
-    productCount: products.length,
-    auditedCount: 0,
-    createdAt: truck.createdAt.toISOString(),
-  });
+  const stats = await getTruckStats(truck.id);
+  res.status(201).json(formatTruckSummary(truck, stats));
 });
 
 // GET /trucks/:truckId
@@ -203,31 +220,8 @@ router.patch("/trucks/:truckId", async (req, res): Promise<void> => {
     return;
   }
 
-  const [productRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(truckProductsTable)
-    .where(eq(truckProductsTable.truckId, truck.id));
-  const [auditedRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(auditEntriesTable)
-    .where(
-      and(
-        eq(auditEntriesTable.truckId, truck.id),
-        sql`(${auditEntriesTable.auditedBultos} is not null or ${auditEntriesTable.auditedUnidades} is not null)`
-      )
-    );
-
-  res.json({
-    id: truck.id,
-    nae: truck.nae,
-    type: truck.type,
-    arrivalTime: truck.arrivalTime,
-    startUnloadTime: truck.startUnloadTime,
-    status: truck.status,
-    productCount: productRow?.count ?? 0,
-    auditedCount: auditedRow?.count ?? 0,
-    createdAt: truck.createdAt.toISOString(),
-  });
+  const stats = await getTruckStats(truck.id);
+  res.json(formatTruckSummary(truck, stats));
 });
 
 // DELETE /trucks/:truckId
@@ -383,31 +377,8 @@ router.post("/trucks/:truckId/finalize", async (req, res): Promise<void> => {
     return;
   }
 
-  const [productRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(truckProductsTable)
-    .where(eq(truckProductsTable.truckId, truck.id));
-  const [auditedRow] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(auditEntriesTable)
-    .where(
-      and(
-        eq(auditEntriesTable.truckId, truck.id),
-        sql`(${auditEntriesTable.auditedBultos} is not null or ${auditEntriesTable.auditedUnidades} is not null)`
-      )
-    );
-
-  res.json({
-    id: truck.id,
-    nae: truck.nae,
-    type: truck.type,
-    arrivalTime: truck.arrivalTime,
-    startUnloadTime: truck.startUnloadTime,
-    status: truck.status,
-    productCount: productRow?.count ?? 0,
-    auditedCount: auditedRow?.count ?? 0,
-    createdAt: truck.createdAt.toISOString(),
-  });
+  const stats = await getTruckStats(truck.id);
+  res.json(formatTruckSummary(truck, stats));
 });
 
 export default router;

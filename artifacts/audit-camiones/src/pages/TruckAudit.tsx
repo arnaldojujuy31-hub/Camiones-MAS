@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import {
   ArrowLeft, CheckCircle2, AlertCircle, PackageCheck, TrendingDown,
-  TrendingUp, Download, FlagTriangleRight, Lock, Loader2
+  TrendingUp, Download, FlagTriangleRight, Lock, Loader2, AlertTriangle
 } from "lucide-react";
 import {
   useGetTruck,
@@ -27,6 +27,7 @@ export function TruckAudit() {
   const qc = useQueryClient();
 
   const [selectedDept, setSelectedDept] = useState<string>("all");
+  const [showOnlyAgotados, setShowOnlyAgotados] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState<string | null>(null);
   const [finalizeAuditor, setFinalizeAuditor] = useState("");
   const [showFinalizeTruckModal, setShowFinalizeTruckModal] = useState(false);
@@ -95,26 +96,27 @@ export function TruckAudit() {
 
   function getDeptStats(dept: string) {
     const prods = getProductsForDept(dept);
-    const audited = prods.filter((p) => p.auditedBultos != null || p.auditedUnidades != null).length;
+    const audited = prods.filter((p) => p.auditedUnidades != null).length;
+    const agotados = prods.filter((p) => agotadosSet.has(p.sku)).length;
     const faltantes = prods.filter((p) => {
-      if (p.auditedBultos == null && p.auditedUnidades == null) return false;
-      return (
-        (p.expectedBultos != null && p.auditedBultos != null && p.auditedBultos < p.expectedBultos) ||
-        (p.expectedUnidades != null && p.auditedUnidades != null && p.auditedUnidades < p.expectedUnidades)
-      );
+      if (p.auditedUnidades == null) return false;
+      return p.expectedUnidades != null && p.auditedUnidades < p.expectedUnidades;
     }).length;
     const sobrantes = prods.filter((p) => {
-      if (p.auditedBultos == null && p.auditedUnidades == null) return false;
-      return (
-        (p.expectedBultos != null && p.auditedBultos != null && p.auditedBultos > p.expectedBultos) ||
-        (p.expectedUnidades != null && p.auditedUnidades != null && p.auditedUnidades > p.expectedUnidades)
-      );
+      if (p.auditedUnidades == null) return false;
+      return p.expectedUnidades != null && p.auditedUnidades > p.expectedUnidades;
     }).length;
-    return { total: prods.length, audited, faltantes, sobrantes };
+    return { total: prods.length, audited, faltantes, sobrantes, agotados };
   }
 
   const overallStats = getDeptStats("all");
-  const visibleProducts = getProductsForDept(selectedDept);
+
+  let visibleProducts = getProductsForDept(selectedDept);
+  if (showOnlyAgotados) {
+    visibleProducts = visibleProducts.filter((p) => agotadosSet.has(p.sku));
+  }
+
+  const agotadosInView = getProductsForDept(selectedDept).filter((p) => agotadosSet.has(p.sku)).length;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-32">
@@ -139,7 +141,7 @@ export function TruckAudit() {
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                {overallStats.audited}/{overallStats.total} auditados
+                {overallStats.audited}/{overallStats.total} auditados (por unidades)
                 {overallStats.faltantes > 0 && (
                   <span className="text-red-600 font-semibold ml-2">· {overallStats.faltantes} faltantes</span>
                 )}
@@ -175,6 +177,7 @@ export function TruckAudit() {
             count={overallStats.total}
             audited={overallStats.audited}
             faltantes={overallStats.faltantes}
+            agotados={overallStats.agotados}
             isActive={selectedDept === "all"}
             isFinalized={false}
             onClick={() => setSelectedDept("all")}
@@ -188,6 +191,7 @@ export function TruckAudit() {
                 count={s.total}
                 audited={s.audited}
                 faltantes={s.faltantes}
+                agotados={s.agotados}
                 isActive={selectedDept === dept}
                 isFinalized={finalizedDepts.has(dept)}
                 onClick={() => setSelectedDept(dept)}
@@ -196,8 +200,26 @@ export function TruckAudit() {
           })}
         </div>
 
+        {agotadosInView > 0 && (
+          <button
+            onClick={() => setShowOnlyAgotados((v) => !v)}
+            className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl border text-sm font-semibold transition-all ${
+              showOnlyAgotados
+                ? "bg-red-600 border-red-700 text-white shadow"
+                : "bg-red-50 border-red-400 text-red-700 hover:bg-red-100"
+            }`}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            {showOnlyAgotados
+              ? `Mostrando ${agotadosInView} agotados en tránsito — Ver todos`
+              : `Ver solo los ${agotadosInView} agotados en tránsito`}
+          </button>
+        )}
+
         {visibleProducts.length === 0 && (
-          <p className="text-center text-gray-400 text-sm py-6">No hay productos en esta selección.</p>
+          <p className="text-center text-gray-400 text-sm py-6">
+            {showOnlyAgotados ? "No hay agotados en esta sección." : "No hay productos en esta selección."}
+          </p>
         )}
 
         <div className="space-y-2">
@@ -357,11 +379,12 @@ function StatCard({ icon, label, value, color }: {
   );
 }
 
-function DeptButton({ label, count, audited, faltantes, isActive, isFinalized, onClick }: {
+function DeptButton({ label, count, audited, faltantes, agotados, isActive, isFinalized, onClick }: {
   label: string;
   count: number;
   audited: number;
   faltantes: number;
+  agotados: number;
   isActive: boolean;
   isFinalized: boolean;
   onClick: () => void;
@@ -386,6 +409,9 @@ function DeptButton({ label, count, audited, faltantes, isActive, isFinalized, o
         {faltantes > 0 && (
           <span className={isActive ? " text-red-300" : " text-red-500"}> ⚠{faltantes}</span>
         )}
+        {agotados > 0 && (
+          <span className={isActive ? " text-red-200 font-bold" : " text-red-600 font-bold"}> 🔴{agotados}</span>
+        )}
       </span>
     </button>
   );
@@ -399,11 +425,9 @@ interface ProductRowProps {
 }
 
 function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) {
-  const [bultos, setBultos] = useState(product.auditedBultos?.toString() ?? "");
   const [unidades, setUnidades] = useState(product.auditedUnidades?.toString() ?? "");
   const hasChanged = useRef(false);
 
-  const debouncedBultos = useDebounce(bultos, 700);
   const debouncedUnidades = useDebounce(unidades, 700);
 
   const upsert = useUpsertAuditEntry();
@@ -416,7 +440,6 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
         truckId,
         sku: product.sku,
         data: {
-          auditedBultos: debouncedBultos !== "" ? Number(debouncedBultos) : null,
           auditedUnidades: debouncedUnidades !== "" ? Number(debouncedUnidades) : null,
         },
       },
@@ -426,32 +449,28 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
         },
       }
     );
-  }, [debouncedBultos, debouncedUnidades]);
+  }, [debouncedUnidades]);
 
-  const auditedB = bultos !== "" ? Number(bultos) : null;
   const auditedU = unidades !== "" ? Number(unidades) : null;
-
-  const diffBultos =
-    product.expectedBultos != null && auditedB != null ? auditedB - product.expectedBultos : null;
   const diffUnidades =
     product.expectedUnidades != null && auditedU != null ? auditedU - product.expectedUnidades : null;
 
-  const isFaltante = (diffBultos != null && diffBultos < 0) || (diffUnidades != null && diffUnidades < 0);
-  const isSobrante = (diffBultos != null && diffBultos > 0) || (diffUnidades != null && diffUnidades > 0);
-  const isOk = (auditedB != null || auditedU != null) && !isFaltante && !isSobrante;
+  const isFaltante = diffUnidades != null && diffUnidades < 0;
+  const isSobrante = diffUnidades != null && diffUnidades > 0;
+  const isOk = auditedU != null && !isFaltante && !isSobrante;
 
   const rowBg = isAgotado
-    ? "bg-red-50 border-red-200"
+    ? "bg-red-100 border-red-400"
     : isFaltante
-    ? "bg-red-50 border-red-200"
+    ? "bg-red-50 border-red-300"
     : isSobrante
-    ? "bg-amber-50 border-amber-200"
+    ? "bg-amber-50 border-amber-300"
     : isOk
     ? "bg-green-50 border-green-200"
     : "bg-white border-gray-200";
 
   return (
-    <div className={`rounded-xl border p-3 transition-colors ${rowBg}`}>
+    <div className={`rounded-xl border-2 p-3 transition-colors ${rowBg}`}>
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 leading-tight line-clamp-2">
@@ -460,11 +479,17 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-gray-400">SKU {product.sku}</span>
             {product.ean && <span className="text-xs text-gray-400">UPC {product.ean}</span>}
+            {product.expectedBultos != null && (
+              <span className="text-xs text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded">
+                {product.expectedBultos} bultos
+              </span>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           {isAgotado && (
-            <span className="text-xs bg-red-100 text-red-700 border border-red-300 px-2 py-0.5 rounded-full font-bold">
+            <span className="flex items-center gap-1 text-xs bg-red-600 text-white px-2 py-0.5 rounded-full font-bold">
+              <AlertTriangle className="w-3 h-3" />
               AGOTADO
             </span>
           )}
@@ -475,27 +500,8 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-xs text-gray-500 mb-1 block">Bultos auditados</label>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              min={0}
-              value={bultos}
-              onChange={(e) => { hasChanged.current = true; setBultos(e.target.value); }}
-              placeholder={`Esp: ${product.expectedBultos ?? "—"}`}
-              disabled={isLocked}
-              className="w-full text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            />
-            {diffBultos != null && (
-              <span className={`text-xs shrink-0 font-bold ${diffBultos < 0 ? "text-red-600" : diffBultos > 0 ? "text-amber-600" : "text-green-600"}`}>
-                {diffBultos > 0 ? `+${diffBultos}` : diffBultos}
-              </span>
-            )}
-          </div>
-        </div>
-        <div>
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
           <label className="text-xs text-gray-500 mb-1 block">Unidades auditadas</label>
           <div className="flex items-center gap-1.5">
             <input
@@ -503,7 +509,7 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
               min={0}
               value={unidades}
               onChange={(e) => { hasChanged.current = true; setUnidades(e.target.value); }}
-              placeholder={`Esp: ${product.expectedUnidades ?? "—"}`}
+              placeholder={`Esperadas: ${product.expectedUnidades ?? "—"}`}
               disabled={isLocked}
               className="w-full text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
@@ -514,6 +520,12 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
             )}
           </div>
         </div>
+        {product.expectedUnidades != null && (
+          <div className="text-right shrink-0 pb-0.5">
+            <p className="text-xs text-gray-400">Esperadas</p>
+            <p className="text-sm font-bold text-gray-600">{product.expectedUnidades}</p>
+          </div>
+        )}
       </div>
     </div>
   );

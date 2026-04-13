@@ -1,7 +1,8 @@
 import type { NaeProduct, TruckType } from "../types";
 
 export function classifyTruck(nae: string, products: NaeProduct[]): TruckType {
-  const prefix = nae.trim().charAt(0);
+  const normalized = nae.trim().replace(/^0+/, "") || "0";
+  const prefix = normalized.charAt(0);
 
   if (prefix === "1") return "secos-moreno";
   if (prefix === "8") return "secos-escobar";

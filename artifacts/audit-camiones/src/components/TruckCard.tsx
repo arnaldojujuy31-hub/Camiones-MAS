@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Truck as TruckIcon, Trash2, Clock, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Truck as TruckIcon, Trash2, Clock, ChevronRight, CheckCircle2, AlertTriangle } from "lucide-react";
 import type { TruckSummary } from "@workspace/api-client-react";
 import { useUpdateTruck, useDeleteTruck, getListTrucksQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -56,9 +56,17 @@ export function TruckCard({ truck }: TruckCardProps) {
                 )}
               </div>
               <h2 className={`text-xl font-bold mt-1 ${config.textColor} truncate`}>NAE {truck.nae}</h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                {truck.productCount} productos · {truck.auditedCount} auditados
-              </p>
+              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                <span className="text-sm text-gray-500">
+                  {truck.productCount} productos · {truck.auditedCount} auditados
+                </span>
+                {truck.agotadoCount > 0 && (
+                  <span className="flex items-center gap-1 text-xs font-bold text-red-700 bg-red-100 border border-red-400 px-2 py-0.5 rounded-full">
+                    <AlertTriangle className="w-3 h-3" />
+                    {truck.agotadoCount} agotados
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </button>
@@ -88,7 +96,7 @@ export function TruckCard({ truck }: TruckCardProps) {
 
       <div className="mt-3">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-medium text-gray-500">Progreso de auditoría</span>
+          <span className="text-xs font-medium text-gray-500">Auditoría (por unidades)</span>
           <span className="text-xs font-bold text-gray-700">{progressPct}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
