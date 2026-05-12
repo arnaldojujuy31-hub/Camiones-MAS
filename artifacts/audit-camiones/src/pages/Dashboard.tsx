@@ -10,7 +10,7 @@ const TYPE_ORDER = ["secos-moreno", "secos-escobar", "congelados", "frios"] as c
 
 export function Dashboard() {
   const [search, setSearch] = useState("");
-  const [showUpload, setShowUpload] = useState(true);
+  const [showUpload, setShowUpload] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const qc = useQueryClient();
 
