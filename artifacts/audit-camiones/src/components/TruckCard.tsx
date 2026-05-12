@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Truck as TruckIcon, Trash2, Clock, ChevronRight, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Truck as TruckIcon, Trash2, ChevronRight, CheckCircle2, AlertTriangle, PackageOpen } from "lucide-react";
 import type { TruckSummary } from "@workspace/api-client-react";
 import { useUpdateTruck, useDeleteTruck, getListTrucksQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,9 +32,14 @@ export function TruckCard({ truck }: TruckCardProps) {
       ? Math.round((truck.auditedCount / truck.productCount) * 100)
       : 0;
 
-  function handleTimeChange(field: "arrivalTime" | "startUnloadTime", value: string) {
-    const body = field === "arrivalTime" ? { arrivalTime: value } : { startUnloadTime: value };
-    updateTruck.mutate({ truckId: truck.id, data: body });
+  const isDescargado = !!truck.arrivalTime;
+
+  function toggleEstado() {
+    if (isDescargado) {
+      updateTruck.mutate({ truckId: truck.id, data: { arrivalTime: null } });
+    } else {
+      updateTruck.mutate({ truckId: truck.id, data: { arrivalTime: new Date().toISOString() } });
+    }
   }
 
   return (
@@ -107,31 +112,28 @@ export function TruckCard({ truck }: TruckCardProps) {
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <Clock className="w-3 h-3" />
-            Llegada a tienda
-          </label>
-          <input
-            type="datetime-local"
-            defaultValue={truck.arrivalTime ?? ""}
-            onBlur={(e) => handleTimeChange("arrivalTime", e.target.value)}
-            className="w-full text-xs border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
-        </div>
-        <div>
-          <label className="flex items-center gap-1 text-xs font-medium text-gray-500 mb-1">
-            <TruckIcon className="w-3 h-3" />
-            Inicio descarga
-          </label>
-          <input
-            type="datetime-local"
-            defaultValue={truck.startUnloadTime ?? ""}
-            onBlur={(e) => handleTimeChange("startUnloadTime", e.target.value)}
-            className="w-full text-xs border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300"
-          />
-        </div>
+      <div className="mt-3">
+        <button
+          onClick={toggleEstado}
+          disabled={updateTruck.isPending}
+          className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
+            isDescargado
+              ? "bg-green-100 border-green-400 text-green-800 hover:bg-green-200"
+              : "bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200"
+          }`}
+        >
+          {isDescargado ? (
+            <>
+              <PackageOpen className="w-4 h-4" />
+              Descargado
+            </>
+          ) : (
+            <>
+              <TruckIcon className="w-4 h-4" />
+              En tránsito
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
