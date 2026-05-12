@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useRoute } from "wouter";
 import {
   ArrowLeft, CheckCircle2, AlertCircle, PackageCheck, TrendingDown,
-  TrendingUp, Download, FlagTriangleRight, Lock, Loader2, AlertTriangle, Plus
+  TrendingUp, Download, FlagTriangleRight, Lock, Loader2, AlertTriangle, Plus, User
 } from "lucide-react";
 import {
   useGetTruck,
@@ -28,6 +28,8 @@ export function TruckAudit() {
   const [selectedDept, setSelectedDept] = useState<string>("all");
   const [showOnlyAgotados, setShowOnlyAgotados] = useState(false);
   const [statFilter, setStatFilter] = useState<"all" | "audited" | "faltantes" | "sobrantes">("all");
+  const [auditorName, setAuditorName] = useState<string>(() => localStorage.getItem("auditorName") ?? "");
+  const [editingName, setEditingName] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState<string | null>(null);
   const [finalizeAuditor, setFinalizeAuditor] = useState("");
   const [showFinalizeTruckModal, setShowFinalizeTruckModal] = useState(false);
@@ -175,6 +177,32 @@ export function TruckAudit() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+        {/* Auditor name bar */}
+        {editingName || !auditorName ? (
+          <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+            <User className="w-4 h-4 text-blue-500 shrink-0" />
+            <input
+              autoFocus
+              type="text"
+              value={auditorName}
+              onChange={(e) => setAuditorName(e.target.value)}
+              onBlur={() => { localStorage.setItem("auditorName", auditorName); setEditingName(false); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { localStorage.setItem("auditorName", auditorName); setEditingName(false); } }}
+              placeholder="Ingresá tu nombre para registrar conteos..."
+              className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder-gray-400"
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setEditingName(true)}
+            className="w-full flex items-center gap-2 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-xl px-3 py-2 transition-colors"
+          >
+            <User className="w-4 h-4 text-blue-500 shrink-0" />
+            <span className="text-sm text-blue-700 font-medium">{auditorName}</span>
+            <span className="text-xs text-blue-400 ml-auto">Toca para cambiar</span>
+          </button>
+        )}
+
         <div className="grid grid-cols-4 gap-2">
           <StatCard icon={<PackageCheck className="w-4 h-4 text-blue-500" />} label="Total" value={overallStats.total}
             isActive={statFilter === "all"} onClick={() => setStatFilter("all")} />
@@ -245,6 +273,7 @@ export function TruckAudit() {
               truckId={truckId}
               isAgotado={agotadosSet.has(product.sku)}
               isLocked={truck.status === "completed"}
+              auditorName={auditorName}
             />
           ))}
         </div>
@@ -447,9 +476,10 @@ interface ProductRowProps {
   truckId: number;
   isAgotado: boolean;
   isLocked: boolean;
+  auditorName: string;
 }
 
-function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) {
+function ProductRow({ product, truckId, isAgotado, isLocked, auditorName }: ProductRowProps) {
   const [addAmount, setAddAmount] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -486,7 +516,7 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
     if (!addAmount || amount === 0) return;
     const newTotal = currentTotal + amount;
     upsert.mutate(
-      { truckId, sku: product.sku, data: { auditedUnidades: newTotal } },
+      { truckId, sku: product.sku, data: { auditedUnidades: newTotal, auditorName: auditorName || null } },
       {
         onSuccess: () => {
           qc.invalidateQueries({ queryKey: getGetTruckQueryKey(truckId) });
@@ -517,6 +547,12 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
               </span>
             )}
           </div>
+          {product.auditorName && (
+            <div className="flex items-center gap-1 mt-1">
+              <User className="w-3 h-3 text-gray-400" />
+              <span className="text-xs text-gray-400">{product.auditorName}</span>
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           {isAgotado && (
