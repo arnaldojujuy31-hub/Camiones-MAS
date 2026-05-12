@@ -26,7 +26,13 @@ function normalizeKey(key: string | null | undefined): string {
     .trim();
 }
 
-export function parseNaeFile(file: File): Promise<{ nae: string; products: NaeProduct[] }> {
+export interface ParsedNaeFile {
+  nae: string;
+  products: NaeProduct[];
+  agotadoSkus: Set<string>;
+}
+
+export function parseNaeFile(file: File): Promise<ParsedNaeFile> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -54,6 +60,7 @@ export function parseNaeFile(file: File): Promise<{ nae: string; products: NaePr
         const normalizedHeaders = headerRow.map(normalizeKey);
 
         const products: NaeProduct[] = [];
+        const agotadoSkus = new Set<string>();
         let detectedNae = "";
 
         for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
@@ -100,6 +107,22 @@ export function parseNaeFile(file: File): Promise<{ nae: string; products: NaePr
 
           if (product.sku || product.descripcion) {
             products.push(product);
+
+            // Detectar agotados: columna "stock disponible" (o variantes) con valor 0
+            const stockRaw =
+              obj["stock_disponible"] ??
+              obj["stock"] ??
+              obj["disponible"] ??
+              obj["stock_disp"] ??
+              obj["stk_disponible"] ??
+              obj["stk"];
+
+            if (skuVal && stockRaw !== undefined && stockRaw !== "") {
+              const stockNum = Number(stockRaw);
+              if (!isNaN(stockNum) && stockNum === 0) {
+                agotadoSkus.add(skuVal);
+              }
+            }
           }
         }
 
@@ -119,62 +142,7 @@ export function parseNaeFile(file: File): Promise<{ nae: string; products: NaePr
           return;
         }
 
-        resolve({ nae: detectedNae, products });
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = () => reject(new Error("Error al leer el archivo."));
-    reader.readAsArrayBuffer(file);
-  });
-}
-
-export function parseAgotadosFile(file: File): Promise<Set<string>> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rawRows = XLSX.utils.sheet_to_json(sheet, {
-          header: 1,
-          defval: "",
-        }) as (string | number | null | undefined)[][];
-
-        const skuSet = new Set<string>();
-
-        const headerRowIdx = findHeaderRow(rawRows);
-        if (headerRowIdx < 0) {
-          resolve(skuSet);
-          return;
-        }
-
-        const headerRow = rawRows[headerRowIdx] as (string | null | undefined)[];
-        const normalizedHeaders = headerRow.map(normalizeKey);
-
-        for (let i = headerRowIdx + 1; i < rawRows.length; i++) {
-          const row = rawRows[i] as (string | number)[];
-          if (!row || row.every((cell) => cell === "" || cell === null || cell === undefined)) {
-            continue;
-          }
-
-          const obj: Record<string, string | number | undefined> = {};
-          normalizedHeaders.forEach((header, idx) => {
-            obj[header] = row[idx] as string | number | undefined;
-          });
-
-          const naeVal = (obj["nae"] ?? "").toString().trim();
-          if (naeVal.toLowerCase() === "total") continue;
-
-          const sku = (obj["sku"] ?? "").toString().trim();
-          if (sku) {
-            skuSet.add(sku);
-          }
-        }
-
-        resolve(skuSet);
+        resolve({ nae: detectedNae, products, agotadoSkus });
       } catch (err) {
         reject(err);
       }
