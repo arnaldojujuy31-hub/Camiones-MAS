@@ -432,7 +432,7 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
 
   const currentTotal = product.auditedUnidades ?? 0;
   const hasAudited = product.auditedUnidades != null;
-  const pending = addAmount !== "" && Number(addAmount) > 0;
+  const pending = addAmount !== "" && Number(addAmount) !== 0;
   const previewTotal = pending ? currentTotal + Number(addAmount) : null;
   const displayTotal = previewTotal ?? (hasAudited ? currentTotal : null);
 
@@ -457,7 +457,7 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
 
   function handleAdd() {
     const amount = Number(addAmount);
-    if (!addAmount || amount <= 0) return;
+    if (!addAmount || amount === 0) return;
     const newTotal = currentTotal + amount;
     upsert.mutate(
       { truckId, sku: product.sku, data: { auditedUnidades: newTotal } },
@@ -513,7 +513,6 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
             <input
               ref={inputRef}
               type="number"
-              min={1}
               value={addAmount}
               onChange={(e) => setAddAmount(e.target.value)}
               onKeyDown={handleKeyDown}
