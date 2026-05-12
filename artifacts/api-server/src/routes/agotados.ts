@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, agotadosTable } from "@workspace/db";
+import { db, agotadosTable, truckProductsTable, trucksTable } from "@workspace/db";
 import { SetAgotadosBody } from "@workspace/api-zod";
-import { sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -28,6 +28,27 @@ router.post("/agotados", async (req, res): Promise<void> => {
 
   const rows = await db.select().from(agotadosTable);
   res.json({ skus: rows.map((r) => r.sku) });
+});
+
+// GET /agotados/details — agotados con detalle de producto
+router.get("/agotados/details", async (_req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      sku: agotadosTable.sku,
+      description: truckProductsTable.description,
+      department: truckProductsTable.department,
+      ean: truckProductsTable.ean,
+      expectedBultos: truckProductsTable.expectedBultos,
+      expectedUnidades: truckProductsTable.expectedUnidades,
+      truckNae: trucksTable.nae,
+      truckType: trucksTable.type,
+    })
+    .from(agotadosTable)
+    .leftJoin(truckProductsTable, eq(agotadosTable.sku, truckProductsTable.sku))
+    .leftJoin(trucksTable, eq(truckProductsTable.truckId, trucksTable.id))
+    .orderBy(truckProductsTable.department, truckProductsTable.description);
+
+  res.json({ products: rows });
 });
 
 // DELETE /agotados — borra todos los agotados
