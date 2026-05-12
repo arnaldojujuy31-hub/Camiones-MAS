@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Truck, Search, Trash2, ChevronDown, ChevronUp, PackageOpen, RefreshCw, Download } from "lucide-react";
+import { Truck, Search, Trash2, ChevronDown, ChevronUp, PackageOpen, RefreshCw } from "lucide-react";
 import { useListTrucks, useGetAgotados, getListTrucksQueryKey, deleteTruck } from "@workspace/api-client-react";
-import { exportAgotadosToExcel } from "../lib/exportAgotados";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileUploader } from "../components/FileUploader";
 import { TruckCard } from "../components/TruckCard";
@@ -13,7 +12,6 @@ export function Dashboard() {
   const [search, setSearch] = useState("");
   const [showUpload, setShowUpload] = useState(true);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [exportingAgotados, setExportingAgotados] = useState(false);
   const qc = useQueryClient();
 
   const { data: trucks = [], isLoading, error } = useListTrucks({
@@ -48,15 +46,6 @@ export function Dashboard() {
   const totalAudited = trucks.reduce((sum, t) => sum + t.auditedCount, 0);
   const totalProducts = trucks.reduce((sum, t) => sum + t.productCount, 0);
 
-  async function handleExportAgotados() {
-    setExportingAgotados(true);
-    try {
-      await exportAgotadosToExcel();
-    } finally {
-      setExportingAgotados(false);
-    }
-  }
-
   async function handleClearAll() {
     for (const truck of trucks) {
       await deleteTruck(truck.id);
@@ -86,15 +75,6 @@ export function Dashboard() {
                   <>
                     <span>·</span>
                     <span className="text-red-600 font-semibold">{agotadosCount} agotados</span>
-                    <button
-                      onClick={handleExportAgotados}
-                      disabled={exportingAgotados}
-                      title="Exportar agotados en tránsito"
-                      className="flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-100 hover:bg-red-200 border border-red-300 px-2 py-0.5 rounded-lg transition-colors disabled:opacity-60"
-                    >
-                      <Download className="w-3 h-3" />
-                      {exportingAgotados ? "..." : "Excel"}
-                    </button>
                   </>
                 )}
               </>

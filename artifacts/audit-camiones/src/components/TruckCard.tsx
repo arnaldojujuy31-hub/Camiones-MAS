@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Truck as TruckIcon, Trash2, ChevronRight, CheckCircle2, AlertTriangle, PackageOpen } from "lucide-react";
+import { Truck as TruckIcon, Trash2, ChevronRight, CheckCircle2, AlertTriangle, PackageOpen, Download, Loader2 } from "lucide-react";
 import type { TruckSummary } from "@workspace/api-client-react";
 import { useUpdateTruck, useDeleteTruck, getListTrucksQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TRUCK_CONFIGS } from "../types";
 import { useNavigate } from "../hooks/useNavigate";
+import { exportAgotadosByTruck } from "../lib/exportAgotados";
 
 interface TruckCardProps {
   truck: TruckSummary;
@@ -15,6 +16,7 @@ export function TruckCard({ truck }: TruckCardProps) {
   const config = TRUCK_CONFIGS[truck.type as keyof typeof TRUCK_CONFIGS] ?? TRUCK_CONFIGS["secos-moreno"];
   const { navigate } = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [exportingAgotados, setExportingAgotados] = useState(false);
 
   const updateTruck = useUpdateTruck({
     mutation: {
@@ -33,6 +35,16 @@ export function TruckCard({ truck }: TruckCardProps) {
       : 0;
 
   const isDescargado = !!truck.arrivalTime;
+
+  async function handleExportAgotados(e: React.MouseEvent) {
+    e.stopPropagation();
+    setExportingAgotados(true);
+    try {
+      await exportAgotadosByTruck(truck.id, truck.nae);
+    } finally {
+      setExportingAgotados(false);
+    }
+  }
 
   function toggleEstado() {
     if (isDescargado) {
@@ -112,28 +124,37 @@ export function TruckCard({ truck }: TruckCardProps) {
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3 flex gap-2">
         <button
           onClick={toggleEstado}
           disabled={updateTruck.isPending}
-          className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
             isDescargado
               ? "bg-green-100 border-green-400 text-green-800 hover:bg-green-200"
               : "bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200"
           }`}
         >
           {isDescargado ? (
-            <>
-              <PackageOpen className="w-4 h-4" />
-              Descargado
-            </>
+            <><PackageOpen className="w-4 h-4" />Descargado</>
           ) : (
-            <>
-              <TruckIcon className="w-4 h-4" />
-              En tránsito
-            </>
+            <><TruckIcon className="w-4 h-4" />En tránsito</>
           )}
         </button>
+
+        {truck.agotadoCount > 0 && (
+          <button
+            onClick={handleExportAgotados}
+            disabled={exportingAgotados}
+            title="Exportar agotados en tránsito a Excel"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold transition-all disabled:opacity-60 shrink-0"
+          >
+            {exportingAgotados
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Download className="w-4 h-4" />
+            }
+            Agotados
+          </button>
+        )}
       </div>
     </div>
   );

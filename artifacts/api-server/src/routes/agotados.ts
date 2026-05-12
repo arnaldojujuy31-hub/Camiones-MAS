@@ -30,9 +30,11 @@ router.post("/agotados", async (req, res): Promise<void> => {
   res.json({ skus: rows.map((r) => r.sku) });
 });
 
-// GET /agotados/details — agotados con detalle de producto
-router.get("/agotados/details", async (_req, res): Promise<void> => {
-  const rows = await db
+// GET /agotados/details?truckId=N — agotados con detalle de producto (filtrable por camión)
+router.get("/agotados/details", async (req, res): Promise<void> => {
+  const truckId = req.query.truckId ? parseInt(req.query.truckId as string, 10) : null;
+
+  const query = db
     .select({
       sku: agotadosTable.sku,
       description: truckProductsTable.description,
@@ -44,9 +46,12 @@ router.get("/agotados/details", async (_req, res): Promise<void> => {
       truckType: trucksTable.type,
     })
     .from(agotadosTable)
-    .leftJoin(truckProductsTable, eq(agotadosTable.sku, truckProductsTable.sku))
-    .leftJoin(trucksTable, eq(truckProductsTable.truckId, trucksTable.id))
-    .orderBy(truckProductsTable.department, truckProductsTable.description);
+    .innerJoin(truckProductsTable, eq(agotadosTable.sku, truckProductsTable.sku))
+    .innerJoin(trucksTable, eq(truckProductsTable.truckId, trucksTable.id));
+
+  const rows = truckId
+    ? await query.where(eq(truckProductsTable.truckId, truckId)).orderBy(truckProductsTable.department, truckProductsTable.description)
+    : await query.orderBy(truckProductsTable.department, truckProductsTable.description);
 
   res.json({ products: rows });
 });
