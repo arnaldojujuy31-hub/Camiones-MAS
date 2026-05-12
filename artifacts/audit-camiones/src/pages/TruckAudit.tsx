@@ -27,6 +27,7 @@ export function TruckAudit() {
 
   const [selectedDept, setSelectedDept] = useState<string>("all");
   const [showOnlyAgotados, setShowOnlyAgotados] = useState(false);
+  const [statFilter, setStatFilter] = useState<"all" | "audited" | "faltantes" | "sobrantes">("all");
   const [showFinalizeModal, setShowFinalizeModal] = useState<string | null>(null);
   const [finalizeAuditor, setFinalizeAuditor] = useState("");
   const [showFinalizeTruckModal, setShowFinalizeTruckModal] = useState(false);
@@ -114,6 +115,17 @@ export function TruckAudit() {
   if (showOnlyAgotados) {
     visibleProducts = visibleProducts.filter((p) => agotadosSet.has(p.sku));
   }
+  if (statFilter === "audited") {
+    visibleProducts = visibleProducts.filter((p) => p.auditedUnidades != null);
+  } else if (statFilter === "faltantes") {
+    visibleProducts = visibleProducts.filter(
+      (p) => p.auditedUnidades != null && p.expectedUnidades != null && p.auditedUnidades < p.expectedUnidades
+    );
+  } else if (statFilter === "sobrantes") {
+    visibleProducts = visibleProducts.filter(
+      (p) => p.auditedUnidades != null && p.expectedUnidades != null && p.auditedUnidades > p.expectedUnidades
+    );
+  }
 
   const agotadosInView = getProductsForDept(selectedDept).filter((p) => agotadosSet.has(p.sku)).length;
 
@@ -164,10 +176,14 @@ export function TruckAudit() {
 
       <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
         <div className="grid grid-cols-4 gap-2">
-          <StatCard icon={<PackageCheck className="w-4 h-4 text-blue-500" />} label="Total" value={overallStats.total} />
-          <StatCard icon={<CheckCircle2 className="w-4 h-4 text-green-500" />} label="Audit." value={overallStats.audited} color="green" />
-          <StatCard icon={<TrendingDown className="w-4 h-4 text-red-500" />} label="Faltant." value={overallStats.faltantes} color="red" />
-          <StatCard icon={<TrendingUp className="w-4 h-4 text-amber-500" />} label="Sobrant." value={overallStats.sobrantes} color="amber" />
+          <StatCard icon={<PackageCheck className="w-4 h-4 text-blue-500" />} label="Total" value={overallStats.total}
+            isActive={statFilter === "all"} onClick={() => setStatFilter("all")} />
+          <StatCard icon={<CheckCircle2 className="w-4 h-4 text-green-500" />} label="Audit." value={overallStats.audited} color="green"
+            isActive={statFilter === "audited"} onClick={() => setStatFilter(statFilter === "audited" ? "all" : "audited")} />
+          <StatCard icon={<TrendingDown className="w-4 h-4 text-red-500" />} label="Faltant." value={overallStats.faltantes} color="red"
+            isActive={statFilter === "faltantes"} onClick={() => setStatFilter(statFilter === "faltantes" ? "all" : "faltantes")} />
+          <StatCard icon={<TrendingUp className="w-4 h-4 text-amber-500" />} label="Sobrant." value={overallStats.sobrantes} color="amber"
+            isActive={statFilter === "sobrantes"} onClick={() => setStatFilter(statFilter === "sobrantes" ? "all" : "sobrantes")} />
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1 snap-x">
@@ -362,19 +378,29 @@ export function TruckAudit() {
   );
 }
 
-function StatCard({ icon, label, value, color }: {
+function StatCard({ icon, label, value, color, isActive, onClick }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   color?: string;
+  isActive?: boolean;
+  onClick?: () => void;
 }) {
-  const bg = color === "green" ? "bg-green-50" : color === "red" ? "bg-red-50" : color === "amber" ? "bg-amber-50" : "bg-white";
+  const baseBg = color === "green" ? "bg-green-50" : color === "red" ? "bg-red-50" : color === "amber" ? "bg-amber-50" : "bg-white";
+  const activeBg = color === "green" ? "bg-green-500" : color === "red" ? "bg-red-500" : color === "amber" ? "bg-amber-500" : "bg-blue-500";
   return (
-    <div className={`${bg} rounded-xl p-2.5 border border-gray-200 text-center`}>
-      <div className="flex justify-center mb-1">{icon}</div>
-      <div className="text-lg font-bold text-gray-800 leading-tight">{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
-    </div>
+    <button
+      onClick={onClick}
+      className={`w-full rounded-xl p-2.5 border text-center transition-all ${
+        isActive
+          ? `${activeBg} border-transparent shadow-md`
+          : `${baseBg} border-gray-200 hover:brightness-95`
+      }`}
+    >
+      <div className={`flex justify-center mb-1 ${isActive ? "text-white [&>*]:text-white" : ""}`}>{icon}</div>
+      <div className={`text-lg font-bold leading-tight ${isActive ? "text-white" : "text-gray-800"}`}>{value}</div>
+      <div className={`text-xs ${isActive ? "text-white/80" : "text-gray-500"}`}>{label}</div>
+    </button>
   );
 }
 
