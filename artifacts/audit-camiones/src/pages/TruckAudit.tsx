@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useRoute } from "wouter";
 import {
   ArrowLeft, CheckCircle2, AlertCircle, PackageCheck, TrendingDown,
-  TrendingUp, Download, FlagTriangleRight, Lock, Loader2, AlertTriangle
+  TrendingUp, Download, FlagTriangleRight, Lock, Loader2, AlertTriangle, Plus
 } from "lucide-react";
 import {
   useGetTruck,
@@ -17,7 +17,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { TRUCK_CONFIGS } from "../types";
 import { useNavigate } from "../hooks/useNavigate";
-import { useDebounce } from "../hooks/useDebounce";
 import { exportAuditReport } from "../lib/exportReport";
 
 export function TruckAudit() {
@@ -425,39 +424,26 @@ interface ProductRowProps {
 }
 
 function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) {
-  const [unidades, setUnidades] = useState(product.auditedUnidades?.toString() ?? "");
-  const hasChanged = useRef(false);
-
-  const debouncedUnidades = useDebounce(unidades, 700);
+  const [addAmount, setAddAmount] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const upsert = useUpsertAuditEntry();
   const qc = useQueryClient();
 
-  useEffect(() => {
-    if (!hasChanged.current) return;
-    upsert.mutate(
-      {
-        truckId,
-        sku: product.sku,
-        data: {
-          auditedUnidades: debouncedUnidades !== "" ? Number(debouncedUnidades) : null,
-        },
-      },
-      {
-        onSuccess: () => {
-          qc.invalidateQueries({ queryKey: getGetTruckQueryKey(truckId) });
-        },
-      }
-    );
-  }, [debouncedUnidades]);
+  const currentTotal = product.auditedUnidades ?? 0;
+  const hasAudited = product.auditedUnidades != null;
+  const pending = addAmount !== "" && Number(addAmount) > 0;
+  const previewTotal = pending ? currentTotal + Number(addAmount) : null;
+  const displayTotal = previewTotal ?? (hasAudited ? currentTotal : null);
 
-  const auditedU = unidades !== "" ? Number(unidades) : null;
   const diffUnidades =
-    product.expectedUnidades != null && auditedU != null ? auditedU - product.expectedUnidades : null;
+    product.expectedUnidades != null && displayTotal != null
+      ? displayTotal - product.expectedUnidades
+      : null;
 
   const isFaltante = diffUnidades != null && diffUnidades < 0;
   const isSobrante = diffUnidades != null && diffUnidades > 0;
-  const isOk = auditedU != null && !isFaltante && !isSobrante;
+  const isOk = displayTotal != null && !isFaltante && !isSobrante;
 
   const rowBg = isAgotado
     ? "bg-red-100 border-red-400"
@@ -468,6 +454,26 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
     : isOk
     ? "bg-green-50 border-green-200"
     : "bg-white border-gray-200";
+
+  function handleAdd() {
+    const amount = Number(addAmount);
+    if (!addAmount || amount <= 0) return;
+    const newTotal = currentTotal + amount;
+    upsert.mutate(
+      { truckId, sku: product.sku, data: { auditedUnidades: newTotal } },
+      {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: getGetTruckQueryKey(truckId) });
+          setAddAmount("");
+          inputRef.current?.focus();
+        },
+      }
+    );
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") handleAdd();
+  }
 
   return (
     <div className={`rounded-xl border-2 p-3 transition-colors ${rowBg}`}>
@@ -494,38 +500,60 @@ function ProductRow({ product, truckId, isAgotado, isLocked }: ProductRowProps) 
             </span>
           )}
           {upsert.isPending && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin" />}
-          {isOk && !upsert.isPending && <CheckCircle2 className="w-4 h-4 text-green-500" />}
+          {!upsert.isPending && isOk && <CheckCircle2 className="w-4 h-4 text-green-500" />}
           {isFaltante && <span className="text-xs font-bold text-red-600">FALTANTE</span>}
           {isSobrante && <span className="text-xs font-bold text-amber-600">SOBRANTE</span>}
         </div>
       </div>
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-3">
         <div className="flex-1">
-          <label className="text-xs text-gray-500 mb-1 block">Unidades auditadas</label>
-          <div className="flex items-center gap-1.5">
+          <label className="text-xs text-gray-500 mb-1 block">Agregar unidades</label>
+          <div className="flex gap-1.5">
             <input
+              ref={inputRef}
               type="number"
-              min={0}
-              value={unidades}
-              onChange={(e) => { hasChanged.current = true; setUnidades(e.target.value); }}
-              placeholder={`Esperadas: ${product.expectedUnidades ?? "—"}`}
-              disabled={isLocked}
+              min={1}
+              value={addAmount}
+              onChange={(e) => setAddAmount(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="0"
+              disabled={isLocked || upsert.isPending}
               className="w-full text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
-            {diffUnidades != null && (
-              <span className={`text-xs shrink-0 font-bold ${diffUnidades < 0 ? "text-red-600" : diffUnidades > 0 ? "text-amber-600" : "text-green-600"}`}>
-                {diffUnidades > 0 ? `+${diffUnidades}` : diffUnidades}
-              </span>
-            )}
+            <button
+              onClick={handleAdd}
+              disabled={!pending || isLocked || upsert.isPending}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white rounded-lg text-sm font-semibold transition-colors shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
           </div>
         </div>
-        {product.expectedUnidades != null && (
-          <div className="text-right shrink-0 pb-0.5">
-            <p className="text-xs text-gray-400">Esperadas</p>
-            <p className="text-sm font-bold text-gray-600">{product.expectedUnidades}</p>
-          </div>
-        )}
+
+        <div className="text-right shrink-0 pb-0.5 min-w-[64px]">
+          <p className="text-xs text-gray-400">Total</p>
+          <p className={`text-base font-bold leading-tight ${
+            pending ? "text-blue-600" : hasAudited ? "text-gray-800" : "text-gray-300"
+          }`}>
+            {displayTotal ?? "—"}
+            {pending && (
+              <span className="text-xs font-normal text-blue-400 ml-1">
+                (+{Number(addAmount)})
+              </span>
+            )}
+          </p>
+          {product.expectedUnidades != null && (
+            <>
+              <p className="text-xs text-gray-400 mt-0.5">Esp. {product.expectedUnidades}</p>
+              {diffUnidades != null && diffUnidades !== 0 && (
+                <p className={`text-xs font-bold ${diffUnidades < 0 ? "text-red-600" : "text-amber-600"}`}>
+                  {diffUnidades > 0 ? `+${diffUnidades}` : diffUnidades}
+                </p>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
