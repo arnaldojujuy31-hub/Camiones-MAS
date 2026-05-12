@@ -68,6 +68,7 @@ export function exportAuditReport(truck: TruckDetail, agotadosSet: Set<string>) 
     "Diff Unidades",
     "Estado",
     "Agotado",
+    "Auditado por",
   ];
 
   const detalleRows = truck.products.map((p) => {
@@ -106,6 +107,7 @@ export function exportAuditReport(truck: TruckDetail, agotadosSet: Set<string>) 
       diffUnidades ?? "",
       estado,
       agotadosSet.has(p.sku) ? "SÍ" : "NO",
+      p.auditorName ?? "",
     ];
   });
 
@@ -128,9 +130,10 @@ export function exportAuditReport(truck: TruckDetail, agotadosSet: Set<string>) 
       p.expectedUnidades != null && p.auditedUnidades != null
         ? p.auditedUnidades - p.expectedUnidades
         : "",
+      p.auditorName ?? "",
     ]);
     const wsFaltantes = XLSX.utils.aoa_to_sheet([
-      ["SKU", "Descripción", "Departamento", "Bultos Esp.", "Bultos Aud.", "Diff Bultos", "Uds Esp.", "Uds Aud.", "Diff Uds"],
+      ["SKU", "Descripción", "Departamento", "Bultos Esp.", "Bultos Aud.", "Diff Bultos", "Uds Esp.", "Uds Aud.", "Diff Uds", "Auditado por"],
       ...faltantesRows,
     ]);
     XLSX.utils.book_append_sheet(wb, wsFaltantes, "Faltantes");
@@ -152,9 +155,10 @@ export function exportAuditReport(truck: TruckDetail, agotadosSet: Set<string>) 
       p.expectedUnidades != null && p.auditedUnidades != null
         ? p.auditedUnidades - p.expectedUnidades
         : "",
+      p.auditorName ?? "",
     ]);
     const wsSobrantes = XLSX.utils.aoa_to_sheet([
-      ["SKU", "Descripción", "Departamento", "Bultos Esp.", "Bultos Aud.", "Diff Bultos", "Uds Esp.", "Uds Aud.", "Diff Uds"],
+      ["SKU", "Descripción", "Departamento", "Bultos Esp.", "Bultos Aud.", "Diff Bultos", "Uds Esp.", "Uds Aud.", "Diff Uds", "Auditado por"],
       ...sobrantesRows,
     ]);
     XLSX.utils.book_append_sheet(wb, wsSobrantes, "Sobrantes");
