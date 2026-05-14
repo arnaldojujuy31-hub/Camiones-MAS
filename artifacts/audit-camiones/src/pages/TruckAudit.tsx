@@ -2,26 +2,11 @@ import { useState, useRef } from "react";
 import { useRoute } from "wouter";
 import {
   ArrowLeft, CheckCircle2, AlertCircle, PackageCheck, TrendingDown,
-  TrendingUp, Download, FlagTriangleRight, Lock, Loader2, AlertTriangle, Plus, User
+  TrendingUp, Download, FlagTriangleRight, Lock, Loader2, AlertTriangle, Plus, User, LogOut
 } from "lucide-react";
-import {
-  useGetTruck,
-  useGetAgotados,
-  useUpsertAuditEntry,
-  useFinalizeDepartment,
-  useFinalizeTruck,
-  getGetTruckQueryKey,
-  getListTrucksQueryKey,
-  type ProductAudit,
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { TRUCK_CONFIGS } from "../types";
-import { useNavigate } from "../hooks/useNavigate";
-import { exportAuditReport } from "../lib/exportReport";
+// ... (imports remain the same)
 
-export function TruckAudit() {
-  const [, params] = useRoute("/truck/:truckId");
-  const truckId = params?.truckId ? parseInt(params.truckId, 10) : 0;
+export function TruckAudit({ truckId, onLogout }: { truckId: number; onLogout: () => void }) {
   const { navigate } = useNavigate();
   const qc = useQueryClient();
 
@@ -172,6 +157,13 @@ export function TruckAudit() {
                 Excel
               </button>
             )}
+            <button
+              onClick={onLogout}
+              className="p-1.5 rounded-lg hover:bg-black/5 text-gray-500"
+              title="Cerrar Sesión"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
           </div>
         </div>
       </header>

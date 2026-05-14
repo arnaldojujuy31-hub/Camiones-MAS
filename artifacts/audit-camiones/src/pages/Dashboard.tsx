@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Truck, Search, Trash2, ChevronDown, ChevronUp, PackageOpen, RefreshCw } from "lucide-react";
+import { Truck, Search, Trash2, ChevronDown, ChevronUp, PackageOpen, RefreshCw, LogOut } from "lucide-react";
 import { useListTrucks, useGetAgotados, getListTrucksQueryKey, deleteTruck } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileUploader } from "../components/FileUploader";
@@ -8,7 +8,7 @@ import { TRUCK_CONFIGS } from "../types";
 
 const TYPE_ORDER = ["secos-moreno", "secos-escobar", "congelados", "frios"] as const;
 
-export function Dashboard() {
+export function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [search, setSearch] = useState("");
   const [showUpload, setShowUpload] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -84,6 +84,13 @@ export function Dashboard() {
               title="Actualizar"
             >
               <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onLogout}
+              className="p-1 rounded text-gray-400 hover:text-red-600 ml-1"
+              title="Cerrar Sesión"
+            >
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

@@ -17,11 +17,15 @@ const queryClient = new QueryClient({
   },
 });
 
-function Router() {
+function Router({ onLogout }: { onLogout: () => void }) {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/truck/:truckId" component={TruckAudit} />
+      <Route path="/">
+        <Dashboard onLogout={onLogout} />
+      </Route>
+      <Route path="/truck/:truckId">
+        {(params) => <TruckAudit truckId={Number(params.truckId)} onLogout={onLogout} />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
@@ -42,11 +46,13 @@ function App() {
     return <Login onLogin={setToken} />;
   }
 
+  const handleLogout = () => setToken(null);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <Router onLogout={handleLogout} />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
