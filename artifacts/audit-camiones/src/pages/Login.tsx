@@ -50,7 +50,7 @@ export function Login({ onLogin }: LoginProps) {
           <div className="mx-auto w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-600/30">
             <Truck className="w-9 h-9 text-white" />
           </div>
-          <CardTitle className="text-3xl font-bold text-white tracking-tight">Audit Receiver</CardTitle>
+          <CardTitle className="text-3xl font-bold text-white tracking-tight">CamionesMAS</CardTitle>
           <CardDescription className="text-blue-200/60 font-medium">
             Ingresa la contraseña para acceder al sistema
           </CardDescription>

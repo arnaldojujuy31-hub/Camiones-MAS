@@ -61,8 +61,7 @@ export function Dashboard() {
           <div className="flex items-center gap-2">
             <Truck className="w-6 h-6 text-blue-600" />
             <span className="font-bold text-gray-900 text-lg leading-tight">
-              Auditoría{" "}
-              <span className="text-blue-600">Camiones</span>
+              Camiones<span className="text-blue-600">MAS</span>
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-gray-500">
