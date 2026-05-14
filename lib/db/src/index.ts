@@ -10,9 +10,15 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ 
+export const pool = new pg.Pool({ 
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes("supabase") ? { rejectUnauthorized: false } : false
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
+
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
 });
 export const db = drizzle(pool, { schema });
 

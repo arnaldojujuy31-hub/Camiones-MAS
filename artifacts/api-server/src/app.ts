@@ -31,4 +31,13 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("GLOBAL ERROR HANDLER:", err);
+  res.status(500).json({ 
+    error: "Internal Server Error", 
+    message: err.message,
+    detail: err.detail || err.hint || null 
+  });
+});
+
 export default app;
