@@ -1,9 +1,11 @@
+import { useState, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Dashboard } from "./pages/Dashboard";
 import { TruckAudit } from "./pages/TruckAudit";
+import { Login } from "./pages/Login";
 import NotFound from "./pages/not-found";
 
 const queryClient = new QueryClient({
@@ -26,6 +28,20 @@ function Router() {
 }
 
 function App() {
+  const [token, setToken] = useState<string | null>(localStorage.getItem("auth_token"));
+
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem("auth_token", token);
+    } else {
+      localStorage.removeItem("auth_token");
+    }
+  }, [token]);
+
+  if (!token) {
+    return <Login onLogin={setToken} />;
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
