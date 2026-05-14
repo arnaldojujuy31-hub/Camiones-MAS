@@ -4,7 +4,20 @@ import {
   ArrowLeft, CheckCircle2, AlertCircle, PackageCheck, TrendingDown,
   TrendingUp, Download, FlagTriangleRight, Lock, Loader2, AlertTriangle, Plus, User, LogOut
 } from "lucide-react";
-// ... (imports remain the same)
+import {
+  useGetTruck,
+  useGetAgotados,
+  useUpsertAuditEntry,
+  useFinalizeDepartment,
+  useFinalizeTruck,
+  getGetTruckQueryKey,
+  getListTrucksQueryKey,
+  type ProductAudit,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { TRUCK_CONFIGS } from "../types";
+import { useNavigate } from "../hooks/useNavigate";
+import { exportAuditReport } from "../lib/exportReport";
 
 export function TruckAudit({ truckId, onLogout }: { truckId: number; onLogout: () => void }) {
   const { navigate } = useNavigate();
