@@ -34,7 +34,7 @@ export function FileUploader() {
 
       const type = classifyTruck(nae, products);
 
-      await createTruck({
+      const truck = await createTruck({
         nae,
         type,
         products: products.map((p) => ({
@@ -48,7 +48,7 @@ export function FileUploader() {
       });
 
       if (agotadoSkus.size > 0) {
-        await setAgotados({ skus: Array.from(agotadoSkus) });
+        await setAgotados({ truckId: truck.id, skus: Array.from(agotadoSkus) });
         await qc.invalidateQueries({ queryKey: getGetAgotadosQueryKey() });
       }
 

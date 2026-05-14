@@ -196,6 +196,7 @@ export const GetAgotadosResponse = zod.object({
  * @summary Merge agotados SKUs (adds without replacing existing)
  */
 export const SetAgotadosBody = zod.object({
+  truckId: zod.number(),
   skus: zod.array(zod.string()),
 });
 

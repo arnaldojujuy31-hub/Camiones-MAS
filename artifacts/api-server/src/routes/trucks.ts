@@ -239,6 +239,7 @@ router.delete("/trucks/:truckId", async (req, res): Promise<void> => {
   await db
     .delete(truckProductsTable)
     .where(eq(truckProductsTable.truckId, params.data.truckId));
+  await db.delete(agotadosTable).where(eq(agotadosTable.truckId, params.data.truckId));
   await db.delete(trucksTable).where(eq(trucksTable.id, params.data.truckId));
 
   res.sendStatus(204);
